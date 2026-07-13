@@ -1,14 +1,26 @@
-"""Routing + tool-calling orchestration over the raw ollama SDK (no
-LangChain / agent framework).
+"""Routing + dispatch over the raw ollama SDK (no LangChain / agent
+framework).
 
-Three small models share the 6GB VRAM budget in turn:
-  - arch-router:1.5b classifies each message as "chat" or "code"
-  - llama3.2:3b handles chat + all tool calling
-  - qwen2.5-coder:3b handles code-shaped requests
+Tool invocation is a deterministic Python decision, not something a 3B
+model chooses at generation time — small models are unreliable at
+deciding *whether* to call a tool (observed in practice: spurious tool
+calls on plain greetings, and hallucinated calls to tools that were never
+declared). Instead:
 
-`_call_tool` is the single enforced boundary between LLM-authored tool
-arguments and real code execution: every call is wrapped so a bad
-argument or a tool-internal exception becomes a result the model can see
+  1. arch-router:1.5b classifies each message into one of a small set of
+     routes built directly from TOOL_REGISTRY (plus static "chat"/"code"
+     routes) — a narrow, bounded classification task it's fine-tuned for.
+  2. Python matches the route name to a registry entry directly. There is
+     no step where a chat model is handed a list of tools and asked to
+     decide whether/which one to call.
+  3. If the matched tool has required arguments, one grammar-constrained
+     extraction call (Ollama's JSON-schema `format`) pulls them out —
+     forced-structure extraction, not "decide and call" tool-use.
+  4. llama3.2:3b only ever runs with tools=None. It has nothing to
+     hallucinate the shape of, because it never sees a tools list.
+
+`_call_tool` remains the single enforced boundary between LLM-authored
+arguments and real code execution: exceptions become a controlled result
 instead of crashing the calling thread (UI worker, FastAPI handler, or
 scheduler job).
 """
@@ -17,6 +29,7 @@ from __future__ import annotations
 
 import json
 import logging
+from datetime import datetime
 from typing import Callable
 
 import ollama
@@ -25,18 +38,59 @@ import config
 
 logger = logging.getLogger(__name__)
 
-ROUTER_SYSTEM_PROMPT = (
-    'Classify the user\'s message. Reply with exactly one word:\n'
-    '"code" - writing, debugging, or explaining source code\n'
-    '"chat" - anything else\n'
-    "Reply with only that single word, nothing else."
-)
+STATIC_ROUTES = [
+    {
+        "name": "chat",
+        "description": (
+            "General conversation, greetings, opinions, small talk, or "
+            "general knowledge questions not covered by any other route."
+        ),
+    },
+    {
+        "name": "code",
+        "description": "Writing, debugging, explaining, or reviewing source code.",
+    },
+]
+
+# Verbatim prompt contract from Arch-Router-1.5B's model card. This is a
+# narrow routing specialist, not a general instruction-follower — it was
+# fine-tuned specifically against this <routes>/<conversation> XML
+# structure plus a JSON {"route": ...} output, and ignores ad hoc
+# instructions outside that contract.
+ROUTER_TASK_INSTRUCTION = """
+You are a helpful assistant designed to find the best suited route.
+You are provided with route description within <routes></routes> XML tags:
+<routes>
+
+{routes}
+
+</routes>
+
+<conversation>
+
+{conversation}
+
+</conversation>
+"""
+
+ROUTER_FORMAT_PROMPT = """
+Your task is to decide which route is best suit with user intent on the conversation in <conversation></conversation> XML tags.  Follow the instruction:
+1. If the latest intent from user is irrelevant or user intent is full filled, response with other route {"route": "other"}.
+2. You must analyze the route descriptions and find the best match route for user latest intent.
+3. You only response the name of the route that best matches the user's request, use the exact name in the <routes></routes>.
+
+Based on your analysis, provide your response in the following JSON formats if you decide to match any route:
+{"route": "route_name"}
+"""
 
 CHAT_SYSTEM_PROMPT = (
     "You are MIDAS, a concise local assistant running entirely on the "
-    "user's own machine. Keep answers short. Use the available tools "
-    "when the user asks about the morning briefing, markets, news, or "
-    "reminders instead of guessing."
+    "user's own machine. Keep answers short and conversational. Current "
+    "date and time: {now}. You do NOT have live access to news, stock "
+    "prices, or other current events in this mode — never invent or "
+    "guess a specific headline, price, or event. If asked about any of "
+    "those, say you don't have live access here and suggest asking for "
+    "the briefing instead."
 )
 
 CODER_SYSTEM_PROMPT = (
@@ -50,42 +104,140 @@ BRIEFING_FORMAT_PROMPT = (
     "points — this will be read aloud by a TTS engine."
 )
 
+EXTRACTION_SYSTEM_PROMPT = (
+    "Current datetime: {now}. Extract the arguments for the user's "
+    "request as JSON matching the given schema. Keep any free-text field "
+    "a short paraphrase of the underlying request — do not restate a "
+    "date/time that already belongs in its own field."
+)
+
 
 class Orchestrator:
     def __init__(self, tool_registry: dict):
         self.tool_registry = tool_registry
         self.client = ollama.Client(host=config.OLLAMA_HOST)
 
-    def route(self, text: str) -> str:
-        """One-word traffic classification. Defaults to "chat" on any
-        failure or unparseable output — never blocks a response."""
+        self._route_to_tool: dict[str, tuple[str, dict]] = {}
+        routes = list(STATIC_ROUTES)
+        for name, entry in tool_registry.items():
+            route_name = entry.get("route")
+            if not route_name:
+                continue
+            routes.append(
+                {"name": route_name, "description": entry["schema"]["function"]["description"]}
+            )
+            self._route_to_tool[route_name] = (name, entry)
+        self._routes = routes
+
+    def route(self, text: str, history: list[dict]) -> str:
+        """Classifies into one of self._routes via Arch-Router's
+        routes/conversation contract. Falls back to "chat" on failure or
+        on any label that doesn't match a known route — never blocks a
+        response."""
+        conversation = json.dumps([*history, {"role": "user", "content": text}])
+        prompt = (
+            ROUTER_TASK_INSTRUCTION.format(
+                routes=json.dumps(self._routes), conversation=conversation
+            )
+            + ROUTER_FORMAT_PROMPT
+        )
         try:
             response = self.client.chat(
                 model=config.ROUTER_MODEL,
-                messages=[
-                    {"role": "system", "content": ROUTER_SYSTEM_PROMPT},
-                    {"role": "user", "content": text},
-                ],
+                messages=[{"role": "user", "content": prompt}],
                 keep_alive=config.ROUTER_KEEP_ALIVE,
-                options={"num_ctx": config.ROUTER_NUM_CTX},
+                options={"num_ctx": config.ROUTER_NUM_CTX, "temperature": config.ROUTER_TEMPERATURE},
                 stream=False,
+                format="json",
             )
-            label = response.message.content.strip().lower()
-            return "code" if "code" in label else "chat"
+            label = json.loads(response.message.content).get("route")
+            valid_names = {r["name"] for r in self._routes}
+            return label if label in valid_names else "chat"
         except Exception:
             logger.exception("router call failed, defaulting to chat")
             return "chat"
 
-    def _call_tool(self, name: str, arguments: dict) -> str:
+    def _call_tool(self, name: str, arguments: dict) -> dict:
         entry = self.tool_registry.get(name)
         if entry is None:
-            return f"error: unknown tool '{name}'"
+            return {"ok": False, "error": f"unknown tool '{name}'"}
         try:
-            result = entry["fn"](**arguments)
-            return json.dumps(result, default=str)
+            return {"ok": True, "result": entry["fn"](**arguments)}
         except Exception as exc:
             logger.exception("tool '%s' raised", name)
-            return f"error: tool '{name}' failed: {exc}"
+            return {"ok": False, "error": str(exc)}
+
+    def _extract_arguments(self, params_schema: dict, text: str, history: list[dict]) -> dict:
+        messages = [
+            {
+                "role": "system",
+                "content": EXTRACTION_SYSTEM_PROMPT.format(
+                    now=datetime.now().isoformat(timespec="seconds")
+                ),
+            },
+            *history,
+            {"role": "user", "content": text},
+        ]
+        response = self.client.chat(
+            model=config.ORCHESTRATOR_MODEL,
+            messages=messages,
+            format=params_schema,
+            keep_alive=config.CHAT_KEEP_ALIVE,
+            options={"num_ctx": config.CHAT_NUM_CTX, "temperature": 0.1},
+            stream=False,
+        )
+        return json.loads(response.message.content)
+
+    def _run_tool_route(self, tool_match: tuple[str, dict], text: str, history: list[dict]) -> str:
+        name, entry = tool_match
+        params = entry["schema"]["function"]["parameters"]
+
+        arguments = {}
+        if params.get("required"):
+            try:
+                arguments = self._extract_arguments(params, text, history)
+            except Exception:
+                logger.exception("argument extraction failed for '%s'", name)
+
+        outcome = self._call_tool(name, arguments)
+        if not outcome["ok"]:
+            return f"Sorry, that didn't work: {outcome['error']}"
+        if entry.get("speak_prose"):
+            return self.format_briefing(outcome["result"])
+        describe = entry.get("describe")
+        if describe:
+            return describe(outcome["result"])
+        return json.dumps(outcome["result"], default=str)
+
+    def _stream_plain(
+        self,
+        model: str,
+        system_prompt: str,
+        keep_alive: str,
+        num_ctx: int,
+        temperature: float,
+        text: str,
+        history: list[dict],
+        on_token: Callable[[str], None],
+    ) -> str:
+        messages = [
+            {"role": "system", "content": system_prompt},
+            *history,
+            {"role": "user", "content": text},
+        ]
+        full_text = []
+        for chunk in self.client.chat(
+            model=model,
+            messages=messages,
+            keep_alive=keep_alive,
+            options={"num_ctx": num_ctx, "temperature": temperature},
+            stream=True,
+        ):
+            content = chunk.message.content
+            if content:
+                on_token(content)
+                full_text.append(content)
+        return "".join(full_text)
 
     def stream_response(
         self,
@@ -94,92 +246,53 @@ class Orchestrator:
         on_token: Callable[[str], None],
         on_route: Callable[[str], None] | None = None,
     ) -> str:
-        """Routes the message, streams tokens to on_token as they arrive,
-        transparently executing any tool calls the model requests, and
-        returns the final full text. on_route (if given) is called once
-        with the model name that ended up handling the request, so a UI
-        can reflect it without spending a second routing call."""
-        route = self.route(text)
+        """Routes the message, then either streams tokens live (chat/code)
+        or runs a deterministic tool dispatch and delivers its result as a
+        single chunk to on_token. Returns the final full text either way.
+        on_route (if given) is called once with the model name that ended
+        up handling the request, so a UI can reflect it."""
+        route = self.route(text, history)
+
         if route == "code":
-            model = config.CODER_MODEL
-            system_prompt = CODER_SYSTEM_PROMPT
-            keep_alive = config.CODER_KEEP_ALIVE
-            num_ctx = config.CODER_NUM_CTX
-            tools = None
-        else:
-            model = config.ORCHESTRATOR_MODEL
-            system_prompt = CHAT_SYSTEM_PROMPT
-            keep_alive = config.CHAT_KEEP_ALIVE
-            num_ctx = config.CHAT_NUM_CTX
-            tools = [entry["schema"] for entry in self.tool_registry.values()]
-
-        if on_route:
-            on_route(model)
-
-        messages = [
-            {"role": "system", "content": system_prompt},
-            *history,
-            {"role": "user", "content": text},
-        ]
-
-        tool_calls, full_text = self._consume_stream(
-            model, messages, keep_alive, num_ctx, tools, on_token
-        )
-
-        if not tool_calls:
-            return "".join(full_text)
-
-        messages.append(
-            {
-                "role": "assistant",
-                "content": "",
-                "tool_calls": [
-                    {
-                        "function": {
-                            "name": call.function.name,
-                            "arguments": dict(call.function.arguments),
-                        }
-                    }
-                    for call in tool_calls
-                ],
-            }
-        )
-        for call in tool_calls:
-            result = self._call_tool(call.function.name, dict(call.function.arguments))
-            messages.append(
-                {"role": "tool", "name": call.function.name, "content": result}
+            if on_route:
+                on_route(config.CODER_MODEL)
+            return self._stream_plain(
+                config.CODER_MODEL,
+                CODER_SYSTEM_PROMPT,
+                config.CODER_KEEP_ALIVE,
+                config.CODER_NUM_CTX,
+                config.CODER_TEMPERATURE,
+                text,
+                history,
+                on_token,
             )
 
-        _, full_text = self._consume_stream(
-            model, messages, keep_alive, num_ctx, None, on_token
-        )
-        return "".join(full_text)
+        tool_match = self._route_to_tool.get(route)
+        if tool_match:
+            if on_route:
+                on_route(config.ORCHESTRATOR_MODEL)
+            full_text = self._run_tool_route(tool_match, text, history)
+            on_token(full_text)
+            return full_text
 
-    def _consume_stream(self, model, messages, keep_alive, num_ctx, tools, on_token):
-        chat_kwargs = dict(
-            model=model,
-            messages=messages,
-            keep_alive=keep_alive,
-            options={"num_ctx": num_ctx},
-            stream=True,
+        if on_route:
+            on_route(config.ORCHESTRATOR_MODEL)
+        now = datetime.now().strftime("%A, %B %d, %Y, %H:%M")
+        return self._stream_plain(
+            config.ORCHESTRATOR_MODEL,
+            CHAT_SYSTEM_PROMPT.format(now=now),
+            config.CHAT_KEEP_ALIVE,
+            config.CHAT_NUM_CTX,
+            config.CHAT_TEMPERATURE,
+            text,
+            history,
+            on_token,
         )
-        if tools:
-            chat_kwargs["tools"] = tools
-
-        tool_calls = []
-        full_text = []
-        for chunk in self.client.chat(**chat_kwargs):
-            message = chunk.message
-            if getattr(message, "tool_calls", None):
-                tool_calls.extend(message.tool_calls)
-            if message.content:
-                on_token(message.content)
-                full_text.append(message.content)
-        return tool_calls, full_text
 
     def format_briefing(self, raw: dict) -> str:
-        """One-shot, no-tools call that turns a deterministic briefing
-        payload into TTS-ready prose."""
+        """One-shot call that turns a deterministic briefing payload into
+        TTS-ready prose — the one place an LLM call is used purely for
+        phrasing, per the original spec, rather than for a decision."""
         response = self.client.chat(
             model=config.ORCHESTRATOR_MODEL,
             messages=[

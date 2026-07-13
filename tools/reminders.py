@@ -1,11 +1,19 @@
 """Reminders / calendar-alert tool. Every function is a small, deterministic
 unit against SQLite — no LLM calls, no shared state, safe to call from any
-thread. Schemas below are handed to Ollama's tool-calling API verbatim.
+thread. Each schema's `parameters` doubles as the JSON schema the
+orchestrator uses to grammar-constrain argument extraction, and its
+`description` becomes that tool's arch-router route description.
+
+The describe_* functions turn a tool's result into a user-facing
+confirmation string via plain Python formatting — no LLM call, no
+hallucination risk, instant.
 """
 
 from __future__ import annotations
 
 from datetime import datetime, timezone
+
+import dateparser
 
 from core.db import get_connection
 
@@ -28,8 +36,10 @@ ADD_REMINDER_SCHEMA = {
                 "remind_at": {
                     "type": "string",
                     "description": (
-                        "ISO 8601 local datetime the reminder is due, e.g. "
-                        "2026-07-14T08:00:00."
+                        "When the reminder is due, exactly as the user said "
+                        "it (e.g. 'tomorrow at 5pm', 'in 2 hours', 'tonight "
+                        "at 9pm', or an ISO 8601 datetime). Leave date/time "
+                        "math to the caller — pass the phrase through as-is."
                     ),
                 },
             },
@@ -75,11 +85,24 @@ DELETE_REMINDER_SCHEMA = {
 }
 
 
+def _parse_datetime(value: str) -> datetime:
+    """ISO 8601 first (fast path for already-normalized input), then
+    dateparser for natural-language phrases like 'tomorrow at 5pm' — date
+    math belongs in a deterministic library, not in a 3B model's head."""
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        parsed = dateparser.parse(value, settings={"PREFER_DATES_FROM": "future"})
+        if parsed is None:
+            raise ValueError(f"could not understand date/time: {value!r}")
+    return parsed.replace(microsecond=0)
+
+
 def add_reminder(text: str, remind_at: str) -> dict:
-    """Insert a reminder. Raises ValueError if remind_at isn't a valid
-    ISO 8601 datetime — callers (the orchestrator's tool-dispatch boundary)
-    are expected to catch this and surface it back to the model."""
-    parsed = datetime.fromisoformat(remind_at)
+    """Insert a reminder. Raises ValueError if remind_at can't be parsed
+    as a datetime — callers (the orchestrator's tool-dispatch boundary)
+    are expected to catch this and surface it back to the user."""
+    parsed = _parse_datetime(remind_at)
 
     conn = get_connection()
     try:
@@ -99,6 +122,10 @@ def add_reminder(text: str, remind_at: str) -> dict:
         conn.close()
 
 
+def describe_add_reminder(result: dict) -> str:
+    return f"Reminder set: \"{result['text']}\" for {result['remind_at']}."
+
+
 def list_reminders(include_done: bool = False) -> list[dict]:
     conn = get_connection()
     try:
@@ -115,6 +142,13 @@ def list_reminders(include_done: bool = False) -> list[dict]:
         conn.close()
 
 
+def describe_list_reminders(results: list[dict]) -> str:
+    if not results:
+        return "You have no upcoming reminders."
+    lines = [f"#{r['id']}: {r['text']} — due {r['remind_at']}" for r in results]
+    return "Your reminders:\n" + "\n".join(lines)
+
+
 def delete_reminder(reminder_id: int) -> dict:
     conn = get_connection()
     try:
@@ -123,6 +157,12 @@ def delete_reminder(reminder_id: int) -> dict:
         return {"deleted": cursor.rowcount > 0, "id": reminder_id}
     finally:
         conn.close()
+
+
+def describe_delete_reminder(result: dict) -> str:
+    if result["deleted"]:
+        return f"Deleted reminder #{result['id']}."
+    return f"Couldn't find reminder #{result['id']}."
 
 
 def get_due_reminders(now: str | None = None) -> list[dict]:

@@ -15,8 +15,10 @@ BRIEFING_SCHEMA = {
         "name": "run_morning_briefing",
         "description": (
             "Fetch current watchlist stock prices and top news headlines. "
-            "Call this when the user asks for a briefing, market update, "
-            "or news summary."
+            "Call this for any request about a briefing, market update, "
+            "stock prices, or news — including short phrasings like 'any "
+            "news?', 'what's new', 'what's happening', or 'what's going "
+            "on today', not just the word 'briefing' itself."
         ),
         "parameters": {"type": "object", "properties": {}, "required": []},
     },

@@ -2,8 +2,14 @@
 
 Every capability lives as an isolated, deterministic function under
 tools/. This file's only job is to wire those functions (plus their
-Ollama tool schemas) into one flat TOOL_REGISTRY dict and hand it to the
-orchestrator — no if/else dispatch chains anywhere.
+Ollama-schema-shaped metadata) into one flat TOOL_REGISTRY dict and hand
+it to the orchestrator — no if/else dispatch chains anywhere.
+
+Each entry's "route" is the arch-router label Python matches on to invoke
+that tool deterministically (see core/orchestrator.py) — the model never
+chooses whether to call a tool. "describe" is a plain-Python formatter
+for the tool's result; "speak_prose" opts into an LLM prose pass instead,
+for the one tool (the briefing) that's meant to be read aloud.
 """
 
 import logging
@@ -24,6 +30,9 @@ from tools.reminders import (
     LIST_REMINDERS_SCHEMA,
     add_reminder,
     delete_reminder,
+    describe_add_reminder,
+    describe_delete_reminder,
+    describe_list_reminders,
     list_reminders,
 )
 from ui.app import MidasApp
@@ -31,10 +40,30 @@ from ui.app import MidasApp
 logging.basicConfig(level=logging.INFO)
 
 TOOL_REGISTRY = {
-    "run_morning_briefing": {"fn": run_morning_briefing, "schema": BRIEFING_SCHEMA},
-    "add_reminder": {"fn": add_reminder, "schema": ADD_REMINDER_SCHEMA},
-    "list_reminders": {"fn": list_reminders, "schema": LIST_REMINDERS_SCHEMA},
-    "delete_reminder": {"fn": delete_reminder, "schema": DELETE_REMINDER_SCHEMA},
+    "run_morning_briefing": {
+        "fn": run_morning_briefing,
+        "schema": BRIEFING_SCHEMA,
+        "route": "briefing",
+        "speak_prose": True,
+    },
+    "add_reminder": {
+        "fn": add_reminder,
+        "schema": ADD_REMINDER_SCHEMA,
+        "route": "add_reminder",
+        "describe": describe_add_reminder,
+    },
+    "list_reminders": {
+        "fn": list_reminders,
+        "schema": LIST_REMINDERS_SCHEMA,
+        "route": "list_reminders",
+        "describe": describe_list_reminders,
+    },
+    "delete_reminder": {
+        "fn": delete_reminder,
+        "schema": DELETE_REMINDER_SCHEMA,
+        "route": "delete_reminder",
+        "describe": describe_delete_reminder,
+    },
 }
 
 

@@ -22,9 +22,16 @@ CHAT_KEEP_ALIVE = "2m"
 CODER_KEEP_ALIVE = "2m"
 
 # Aggressive context budgets appropriate for a 6GB card running 3B models.
-ROUTER_NUM_CTX = 512
+ROUTER_NUM_CTX = 1024
 CHAT_NUM_CTX = 2048
 CODER_NUM_CTX = 4096
+
+# Lower than Ollama's default (0.8) — small models stay on-instruction,
+# classify routes more consistently, and extract structured arguments
+# more reliably at low temperature.
+ROUTER_TEMPERATURE = 0.1
+CHAT_TEMPERATURE = 0.3
+CODER_TEMPERATURE = 0.2
 
 # --- Storage -------------------------------------------------------------
 DATA_DIR = BASE_DIR / "data"
@@ -42,8 +49,8 @@ REMINDER_POLL_INTERVAL_MINUTES = 1
 
 # --- Text-to-speech (Kokoro via kokoro-onnx) ------------------------------
 MODELS_DIR = BASE_DIR / "models"
-KOKORO_MODEL_PATH = MODELS_DIR / "kokoro-v0_19.onnx"
-KOKORO_VOICES_PATH = MODELS_DIR / "voices.bin"
+KOKORO_MODEL_PATH = MODELS_DIR / "kokoro-v1.0.int8.onnx"
+KOKORO_VOICES_PATH = MODELS_DIR / "voices-v1.0.bin"
 KOKORO_VOICE = "af_heart"
 KOKORO_SPEED = 1.0
 KOKORO_LANG = "en-us"

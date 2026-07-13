@@ -272,10 +272,14 @@ class MidasApp(ctk.CTk):
         return "break"
 
     def _worker(self, text: str, history_snapshot: list[dict]):
+        routed_model = None
+
         def on_token(token: str):
             self._queue.put(("token", token))
 
         def on_route(model: str):
+            nonlocal routed_model
+            routed_model = model
             self._queue.put(("route", model))
 
         try:
@@ -284,7 +288,15 @@ class MidasApp(ctk.CTk):
             )
         except Exception as exc:
             full_text = f"[error: {exc}]"
+
         self._queue.put(("done", (text, full_text)))
+
+        # Code responses are read, not heard — skip TTS so the coder
+        # model's syntax isn't spoken character by character. This
+        # thread is already off the Tkinter main thread, so blocking
+        # here on playback is safe.
+        if full_text and routed_model != config.CODER_MODEL:
+            self.tts_engine.speak(full_text)
 
     def _poll_queue(self):
         try:
