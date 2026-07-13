@@ -1,0 +1,13 @@
+ollama>=0.4.0
+customtkinter>=5.2.0
+yfinance>=0.2.40
+feedparser>=6.0.10
+apscheduler>=3.10.4
+fastapi>=0.111.0
+uvicorn[standard]>=0.30.0
+pydantic>=2.7.0
+kokoro-onnx>=0.3.0
+sounddevice>=0.4.6
+soundfile>=0.12.1
+numpy>=1.26.0
+python-dotenv>=1.0.1
