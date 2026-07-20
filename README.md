@@ -17,8 +17,7 @@ surface for phone-to-PC control.
 ## 1. Install Ollama models
 
 ```
-ollama pull llama3.2:3b
-ollama pull qwen2.5-coder:3b
+ollama pull qwen2.5:7b
 ```
 
 `arch-router:1.5b` isn't in Ollama's standard library — pull it from
@@ -141,3 +140,11 @@ arguments (like `list_reminders`), it runs with zero LLM calls at all.
 2. Connect to Iphone, maybe give access to computer, connect to google account api
 3. Is not aware of current news
 4. Ship 
+
+
+## Additions:
+
+7/20/2025
+
+Added morning debrief feature.
+Planning to build overnight messages summarization feature. To overcome the obstacle of instagram not having an inherent API to return user messages and apple not having a notification reader function, the plan is to take screenshots everytime a notification pops up and sends it to qwen OCR to analyze it,then puts it in a DB to summarize in the morning

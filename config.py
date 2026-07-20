@@ -7,37 +7,34 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent
 
 # --- Ollama models -----------------------------------------------------
-# Kept as three small, single-purpose models rather than one large model
-# so the 6GB VRAM budget only ever has to hold one of them at a time.
+# Two small, single-purpose models rather than one large model, so the
+# 6GB VRAM budget only ever has to hold one of them at a time.
 OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
 
-ORCHESTRATOR_MODEL = "llama3.2:3b"   # general chat + tool calling
-CODER_MODEL = "qwen2.5-coder:3b"     # code generation / explanation
+ORCHESTRATOR_MODEL = "qwen2.5:7b"    # general chat + tool calling
 ROUTER_MODEL = "arch-router:1.5b"    # single-word traffic classifier
 
 # Short keep-alives so idle models evict from VRAM quickly instead of
 # lingering and starving whichever model runs next.
 ROUTER_KEEP_ALIVE = "30s"
 CHAT_KEEP_ALIVE = "2m"
-CODER_KEEP_ALIVE = "2m"
 
-# Aggressive context budgets appropriate for a 6GB card running 3B models.
+# Aggressive context budgets appropriate for a 6GB card.
 ROUTER_NUM_CTX = 1024
 CHAT_NUM_CTX = 2048
-CODER_NUM_CTX = 4096
 
 # Lower than Ollama's default (0.8) — small models stay on-instruction,
 # classify routes more consistently, and extract structured arguments
 # more reliably at low temperature.
 ROUTER_TEMPERATURE = 0.1
 CHAT_TEMPERATURE = 0.3
-CODER_TEMPERATURE = 0.2
 
 # --- Storage -------------------------------------------------------------
 DATA_DIR = BASE_DIR / "data"
 DB_PATH = DATA_DIR / "midas.db"
 
 # --- Morning briefing ----------------------------------------------------
+USER_NAME = "Jonathan"
 BRIEFING_TIME = "07:30"  # 24h HH:MM, local time
 WATCHLIST_TICKERS = ["SPY", "QQQ", "NVDA"]
 NEWS_FEEDS = [
@@ -56,8 +53,8 @@ KOKORO_SPEED = 1.0
 KOKORO_LANG = "en-us"
 
 # --- FastAPI (phone-to-PC) -------------------------------------------------
-# Bound to loopback only for now; swap to the Tailscale interface IP later
-# without touching any route logic.
-API_HOST = "127.0.0.1"
+# Bound to all interfaces so the Tailscale interface can reach it; the
+# real access control is the X-MIDAS-Token header, not the bind address.
+API_HOST = "0.0.0.0"
 API_PORT = 8420
 API_TOKEN = os.environ.get("MIDAS_API_TOKEN", "change-me-dev-token")

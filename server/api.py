@@ -37,7 +37,7 @@ class ReminderRequest(BaseModel):
     remind_at: str
 
 
-def create_app(orchestrator, tts_engine) -> FastAPI:
+def create_app(orchestrator) -> FastAPI:
     app = FastAPI(title="MIDAS", dependencies=[Depends(_require_token)])
 
     @app.post("/chat", response_model=ChatResponse)
@@ -54,9 +54,12 @@ def create_app(orchestrator, tts_engine) -> FastAPI:
 
     @app.post("/briefing/trigger", response_model=ChatResponse)
     async def trigger_briefing():
+        # No local (PC-side) speech here on purpose — this endpoint's only
+        # caller is remote (e.g. a phone automation), which does its own
+        # TTS. The scheduled PC-native briefing in scheduler/jobs.py is a
+        # separate code path and still speaks locally as before.
         raw = await run_in_threadpool(run_morning_briefing)
         prose = await run_in_threadpool(orchestrator.format_briefing, raw)
-        await run_in_threadpool(tts_engine.speak, prose)
         return ChatResponse(response=prose)
 
     @app.get("/reminders")
