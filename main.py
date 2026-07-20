@@ -75,7 +75,7 @@ def main() -> None:
 
     scheduler = start_scheduler(orchestrator, tts_engine)
 
-    api_app = create_app(orchestrator, tts_engine)
+    api_app = create_app(orchestrator)
     api_thread = threading.Thread(
         target=uvicorn.run,
         args=(api_app,),

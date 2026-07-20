@@ -18,6 +18,13 @@ CREATE TABLE IF NOT EXISTS reminders (
     created_at TEXT NOT NULL,
     done INTEGER NOT NULL DEFAULT 0
 );
+
+CREATE TABLE IF NOT EXISTS notification_captures (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    captured_at TEXT NOT NULL,
+    extracted_text TEXT NOT NULL,
+    summarized INTEGER NOT NULL DEFAULT 0
+);
 """
 
 
@@ -31,7 +38,7 @@ def get_connection() -> sqlite3.Connection:
 def init_db() -> None:
     conn = get_connection()
     try:
-        conn.execute(_SCHEMA)
+        conn.executescript(_SCHEMA)
         conn.commit()
     finally:
         conn.close()

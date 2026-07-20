@@ -1,22 +1,23 @@
 """Routing + dispatch over the raw ollama SDK (no LangChain / agent
 framework).
 
-Tool invocation is a deterministic Python decision, not something a 3B
-model chooses at generation time — small models are unreliable at
+Tool invocation is a deterministic Python decision, not something the
+chat model chooses at generation time — small models are unreliable at
 deciding *whether* to call a tool (observed in practice: spurious tool
 calls on plain greetings, and hallucinated calls to tools that were never
 declared). Instead:
 
   1. arch-router:1.5b classifies each message into one of a small set of
-     routes built directly from TOOL_REGISTRY (plus static "chat"/"code"
-     routes) — a narrow, bounded classification task it's fine-tuned for.
+     routes built directly from TOOL_REGISTRY (plus a static "chat"
+     fallback route) — a narrow, bounded classification task it's
+     fine-tuned for.
   2. Python matches the route name to a registry entry directly. There is
      no step where a chat model is handed a list of tools and asked to
      decide whether/which one to call.
   3. If the matched tool has required arguments, one grammar-constrained
      extraction call (Ollama's JSON-schema `format`) pulls them out —
      forced-structure extraction, not "decide and call" tool-use.
-  4. llama3.2:3b only ever runs with tools=None. It has nothing to
+  4. The chat model only ever runs with tools=None. It has nothing to
      hallucinate the shape of, because it never sees a tools list.
 
 `_call_tool` remains the single enforced boundary between LLM-authored
@@ -42,13 +43,10 @@ STATIC_ROUTES = [
     {
         "name": "chat",
         "description": (
-            "General conversation, greetings, opinions, small talk, or "
-            "general knowledge questions not covered by any other route."
+            "General conversation, greetings, opinions, small talk, general "
+            "knowledge questions, or requests to write, debug, or explain "
+            "code — anything not covered by any other route."
         ),
-    },
-    {
-        "name": "code",
-        "description": "Writing, debugging, explaining, or reviewing source code.",
     },
 ]
 
@@ -85,23 +83,25 @@ Based on your analysis, provide your response in the following JSON formats if y
 
 CHAT_SYSTEM_PROMPT = (
     "You are MIDAS, a concise local assistant running entirely on the "
-    "user's own machine. Keep answers short and conversational. Current "
-    "date and time: {now}. You do NOT have live access to news, stock "
-    "prices, or other current events in this mode — never invent or "
-    "guess a specific headline, price, or event. If asked about any of "
-    "those, say you don't have live access here and suggest asking for "
-    "the briefing instead."
-)
-
-CODER_SYSTEM_PROMPT = (
-    "You are MIDAS in coding mode. Give correct, minimal code with brief "
-    "explanations. No filler."
+    "user's own machine. Keep answers short and conversational, and "
+    "always respond in English regardless of what language is implied "
+    "elsewhere. Current date and time: {now}. You do NOT have live "
+    "access to news, stock prices, or other current events in this "
+    "mode — never invent or guess a specific headline, price, or event. "
+    "If asked about any of those, say you don't have live access here "
+    "and suggest asking for the briefing instead."
 )
 
 BRIEFING_FORMAT_PROMPT = (
-    "Turn this raw briefing JSON into 3-5 short spoken sentences: market "
-    "moves first, then headlines. Plain prose, no markdown, no bullet "
-    "points — this will be read aloud by a TTS engine."
+    "Turn this raw briefing JSON into short spoken sentences, entirely in "
+    "English: market moves first, then headlines, then a summary of "
+    "overnight notifications if any are present. The notifications list "
+    "may contain the same message captured more than once — screenshots "
+    "were taken repeatedly through the night, so a notification that sat "
+    "on the lock screen for hours can appear in several captures. "
+    "Consolidate duplicates into a single mention per sender/topic, never "
+    "repeat the same message. Plain prose, no markdown, no bullet points "
+    "— this will be read aloud by a TTS engine."
 )
 
 EXTRACTION_SYSTEM_PROMPT = (
@@ -109,6 +109,13 @@ EXTRACTION_SYSTEM_PROMPT = (
     "request as JSON matching the given schema. Keep any free-text field "
     "a short paraphrase of the underlying request — do not restate a "
     "date/time that already belongs in its own field."
+)
+
+NOTIFICATION_EXTRACTION_PROMPT = (
+    "Describe every notification visible in this image, one per line. "
+    "For each one, mention which app it's from, who it's from, and what "
+    "it says. If the image genuinely shows no notifications at all, say "
+    "so plainly."
 )
 
 
@@ -246,26 +253,12 @@ class Orchestrator:
         on_token: Callable[[str], None],
         on_route: Callable[[str], None] | None = None,
     ) -> str:
-        """Routes the message, then either streams tokens live (chat/code)
-        or runs a deterministic tool dispatch and delivers its result as a
+        """Routes the message, then either streams tokens live (chat) or
+        runs a deterministic tool dispatch and delivers its result as a
         single chunk to on_token. Returns the final full text either way.
         on_route (if given) is called once with the model name that ended
         up handling the request, so a UI can reflect it."""
         route = self.route(text, history)
-
-        if route == "code":
-            if on_route:
-                on_route(config.CODER_MODEL)
-            return self._stream_plain(
-                config.CODER_MODEL,
-                CODER_SYSTEM_PROMPT,
-                config.CODER_KEEP_ALIVE,
-                config.CODER_NUM_CTX,
-                config.CODER_TEMPERATURE,
-                text,
-                history,
-                on_token,
-            )
 
         tool_match = self._route_to_tool.get(route)
         if tool_match:
@@ -292,7 +285,10 @@ class Orchestrator:
     def format_briefing(self, raw: dict) -> str:
         """One-shot call that turns a deterministic briefing payload into
         TTS-ready prose — the one place an LLM call is used purely for
-        phrasing, per the original spec, rather than for a decision."""
+        phrasing, per the original spec, rather than for a decision. The
+        greeting is prepended in Python, not left to the model to
+        remember — same reasoning as the reminder confirmations: a fixed,
+        short prefix doesn't need to go through generation at all."""
         response = self.client.chat(
             model=config.ORCHESTRATOR_MODEL,
             messages=[
@@ -300,7 +296,28 @@ class Orchestrator:
                 {"role": "user", "content": json.dumps(raw, default=str)},
             ],
             keep_alive=config.CHAT_KEEP_ALIVE,
-            options={"num_ctx": config.CHAT_NUM_CTX},
+            options={"num_ctx": config.CHAT_NUM_CTX, "temperature": config.CHAT_TEMPERATURE},
+            stream=False,
+        )
+        prose = response.message.content.strip()
+        return f"Good morning, {config.USER_NAME}. {prose}"
+
+    def extract_notification_text(self, image_bytes: bytes) -> str:
+        """One-shot vision call: turns a lock-screen screenshot into a
+        plain-text listing of visible notifications. Called directly by
+        the /notification/capture endpoint — not part of the routed
+        chat/tool-dispatch path, same as format_briefing."""
+        response = self.client.chat(
+            model=config.VISION_MODEL,
+            messages=[
+                {
+                    "role": "user",
+                    "content": NOTIFICATION_EXTRACTION_PROMPT,
+                    "images": [image_bytes],
+                }
+            ],
+            keep_alive=config.VISION_KEEP_ALIVE,
+            options={"num_ctx": config.VISION_NUM_CTX},
             stream=False,
         )
         return response.message.content.strip()

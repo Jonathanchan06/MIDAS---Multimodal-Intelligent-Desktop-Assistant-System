@@ -8,6 +8,7 @@ import feedparser
 import yfinance as yf
 
 import config
+from tools.notifications import get_overnight_captures
 
 BRIEFING_SCHEMA = {
     "type": "function",
@@ -72,4 +73,5 @@ def run_morning_briefing() -> dict:
     return {
         "markets": get_market_summary(),
         "headlines": get_top_headlines(),
+        "notifications": get_overnight_captures(),
     }

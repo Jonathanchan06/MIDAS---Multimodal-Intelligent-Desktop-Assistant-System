@@ -17,8 +17,7 @@ surface for phone-to-PC control.
 ## 1. Install Ollama models
 
 ```
-ollama pull llama3.2:3b
-ollama pull qwen2.5-coder:3b
+ollama pull qwen2.5:7b
 ```
 
 `arch-router:1.5b` isn't in Ollama's standard library — pull it from
@@ -42,6 +41,13 @@ to match `config.py` (cheap, local, no re-download):
 
 ```
 ollama cp hf.co/katanemo/Arch-Router-1.5B.gguf:latest arch-router:1.5b
+```
+
+Also pull the vision model used for overnight notification-screenshot
+extraction (see "Overnight notification summary" below):
+
+```
+ollama pull qwen2.5vl:3b
 ```
 
 Confirm all three are present:
@@ -76,11 +82,17 @@ py -3.12 -m pip install -r requirements.txt
 ## 4. Configure
 
 Edit `config.py` for your watchlist tickers, news feeds, briefing time,
-and API port. Set a real shared-secret token for the phone API before
-exposing it beyond loopback:
+`USER_NAME` (used for the "Good morning, {name}" greeting), and API port.
+`API_HOST` is already set to `0.0.0.0` so the server is reachable over
+Tailscale, not just loopback — the real access control is the token
+below, not the bind address.
+
+Set a real shared-secret token for the phone API — use `setx`, not
+`set`, so it persists across terminal sessions instead of only the
+current one:
 
 ```
-set MIDAS_API_TOKEN=your-long-random-token
+setx MIDAS_API_TOKEN your-long-random-token
 ```
 
 ## 5. Run
@@ -90,7 +102,8 @@ py -3.12 main.py
 ```
 
 This launches the desktop UI (main thread), starts the FastAPI server on
-`127.0.0.1:8420` (background thread), and starts the APScheduler jobs
+`0.0.0.0:8420` (background thread — reachable over Tailscale, see below),
+and starts the APScheduler jobs
 (morning briefing + reminder-due polling). Ollama must already be
 running (`ollama serve`, or the Ollama desktop app) for chat, routing,
 and the briefing's prose formatting to work.
@@ -98,15 +111,72 @@ and the briefing's prose formatting to work.
 ## Phone-to-PC API
 
 All routes require an `X-MIDAS-Token` header matching `MIDAS_API_TOKEN`.
+Reachable over Tailscale — install Tailscale on the PC and phone (same
+account/tailnet), then use the PC's `100.x.x.x` Tailscale IP in place of
+`127.0.0.1` below. `API_HOST = "0.0.0.0"` is already set for this; the
+token is what actually gates access, not the bind address.
 
 - `POST /chat` `{"message": "...", "history": []}` → `{"response": "..."}`
-- `POST /briefing/trigger` → runs the briefing now, speaks it, returns the prose
+- `POST /briefing/trigger` → runs the briefing now, returns the prose. No
+  PC-side speech on purpose — this endpoint's only caller is remote (a
+  phone automation doing its own TTS); the scheduled PC-native briefing
+  in `scheduler/jobs.py` is a separate code path and still speaks locally.
 - `GET /reminders` / `POST /reminders` `{"text": "...", "remind_at": "2026-07-14T08:00:00"}`
+- `POST /notification/capture` — raw image bytes as the request body (not
+  multipart/`UploadFile` — a phone Shortcut can send this as a plain
+  "File" request body with nothing else to configure). Responds
+  immediately with `{"status": "queued"}`; the actual vision-model
+  extraction and storage happen afterward via FastAPI `BackgroundTasks`,
+  since inference (plus a possible cold model load) can take longer than
+  a phone's request timeout, and nothing on the phone side needs to wait
+  for or see the result. See "Overnight notification summary" below.
+- `GET /notification/latest` → `{"response": "..."}` with the most recent
+  capture's extracted text (or `"No captures yet."`). Read-only — doesn't
+  mark anything as summarized, so checking it (e.g. to confirm the first
+  capture of the night worked) never causes that capture to be skipped
+  from the real morning recap.
 
-Bound to `127.0.0.1` by default (`config.API_HOST`). To reach it from your
-phone, put it behind Tailscale and point `API_HOST` at the machine's
-Tailscale IP (or `0.0.0.0` if Tailscale's ACLs are already restricting
-access) — no route logic needs to change.
+The practical no-code phone client is the iOS **Shortcuts** app: a
+"Get Contents of URL" action with the token as a header, POST/GET as
+appropriate, and (for `/chat`-shaped JSON responses) "Get Dictionary
+Value" on key `response` to pull out the text before speaking it.
+
+## Overnight notification summary
+
+MIDAS can't read Instagram/WhatsApp DMs directly — no personal-account
+API exists for that, and iOS has no equivalent of Android's Notification
+Listener permission, so no app (including Shortcuts) can read another
+app's notification content directly either. The workaround: iOS
+Shortcuts has a **Take Screenshot** action, and a scheduled screenshot of
+a locked, dark phone's lock screen genuinely captures whatever's
+accumulated in the notification stack — confirmed by direct testing.
+
+**Phone side** (built in Shortcuts, not code): a "Capture Notification"
+shortcut (Take Screenshot → Save to Photo Album, wrapped as a standalone
+shortcut and invoked via "Run Shortcut" from a Personal Automation, since
+Take Screenshot can't run inline in an auto-firing automation) extended
+with a POST to `/notification/capture`. Duplicate the Time of Day
+automation across several points in the night (e.g. every 30-60 min) —
+each capture just adds to the pile, nothing needs to be seen or heard
+overnight. Optionally, wire just the *first* automation of the night to
+also wait ~15-20s and then check `/notification/latest` + Speak Text, as
+a "did this work tonight" confirmation before you fall asleep.
+
+**PC side**: `core/orchestrator.py`'s `extract_notification_text()` runs
+the screenshot through `config.VISION_MODEL` (`qwen2.5vl:3b`) with a
+deliberately open-ended prompt ("describe every notification, one per
+line" — a stricter single-line-format-plus-explicit-bailout prompt was
+tried first and reliably produced false "no notifications visible"
+results even on screenshots with obvious, legible content; the model
+itself was fine, tested independently with a generic "describe this
+image" prompt). Results land in the `notification_captures` SQLite table
+(`tools/notifications.py`, same fetch-then-mark-consumed pattern as
+`tools/reminders.py`'s reminder alerts). Each morning, `run_morning_briefing()`
+pulls everything not yet summarized, and `BRIEFING_FORMAT_PROMPT` is
+explicitly told these are cumulative overnight captures that may repeat
+the same notification several times (it stays on the lock screen until
+dismissed) and to consolidate duplicates into one mention rather than
+reading the same message back multiple times.
 
 ## Adding a new tool
 
@@ -137,7 +207,19 @@ arguments (like `list_reminders`), it runs with zero LLM calls at all.
 
 
 ## Future additions
-1. Personal agent personality
-2. Connect to Iphone, maybe give access to computer, connect to google account api
-3. Is not aware of current news
-4. Ship 
+1. ~~Personal agent personality~~ — done: TTS now speaks every chat reply, not just the briefing.
+2. ~~Connect to iPhone~~ — done via Tailscale (see "Phone-to-PC API"). "Give access to computer" was explicitly discussed and shelved — needs careful scoping (allowlisted actions vs. open command execution) before any code gets written, not something to build casually. "Connect to Google account API" not started.
+3. ~~Is not aware of current news~~ — done: chat now has real date/time injected into its system prompt, and news/market questions correctly route to live data instead of the model guessing or hallucinating.
+4. Ship
+
+
+## Additions:
+
+7/20/2025
+
+Added morning debrief feature.
+Planning to build overnight messages summarization feature. To overcome the obstacle of instagram not having an inherent API to return user messages and apple not having a notification reader function, the plan is to take screenshots everytime a notification pops up and sends it to qwen OCR to analyze it,then puts it in a DB to summarize in the morning
+
+7/26/2026
+
+Built v1 of the overnight notification summarization feature described above — screenshot capture via a Shortcuts automation, `qwen2.5vl:3b` vision extraction, SQLite log, dedup in the morning briefing (see "Overnight notification summary"). 
