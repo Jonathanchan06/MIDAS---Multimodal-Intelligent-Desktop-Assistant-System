@@ -93,6 +93,7 @@ CHAT_SYSTEM_PROMPT = (
 )
 
 BRIEFING_FORMAT_PROMPT = (
+<<<<<<< HEAD
     "Turn this raw briefing JSON into short spoken sentences, entirely in "
     "English: market moves first, then headlines, then a summary of "
     "overnight notifications if any are present. The notifications list "
@@ -102,6 +103,11 @@ BRIEFING_FORMAT_PROMPT = (
     "Consolidate duplicates into a single mention per sender/topic, never "
     "repeat the same message. Plain prose, no markdown, no bullet points "
     "— this will be read aloud by a TTS engine."
+=======
+    "Turn this raw briefing JSON into 3-5 short spoken sentences, entirely "
+    "in English: market moves first, then headlines. Plain prose, no "
+    "markdown, no bullet points — this will be read aloud by a TTS engine."
+>>>>>>> b4bdb17ef4b649cf4b58fdde635b7a1ed41829c3
 )
 
 EXTRACTION_SYSTEM_PROMPT = (
@@ -297,6 +303,7 @@ class Orchestrator:
             ],
             keep_alive=config.CHAT_KEEP_ALIVE,
             options={"num_ctx": config.CHAT_NUM_CTX, "temperature": config.CHAT_TEMPERATURE},
+<<<<<<< HEAD
             stream=False,
         )
         prose = response.message.content.strip()
@@ -318,6 +325,9 @@ class Orchestrator:
             ],
             keep_alive=config.VISION_KEEP_ALIVE,
             options={"num_ctx": config.VISION_NUM_CTX},
+=======
+>>>>>>> b4bdb17ef4b649cf4b58fdde635b7a1ed41829c3
             stream=False,
         )
-        return response.message.content.strip()
+        prose = response.message.content.strip()
+        return f"Good morning, {config.USER_NAME}. {prose}"

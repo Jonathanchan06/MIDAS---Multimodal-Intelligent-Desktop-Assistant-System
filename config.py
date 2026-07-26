@@ -7,8 +7,13 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent
 
 # --- Ollama models -----------------------------------------------------
+<<<<<<< HEAD
 # Small, single-purpose models rather than one large model, so the 6GB
 # VRAM budget only ever has to hold one of them at a time.
+=======
+# Two small, single-purpose models rather than one large model, so the
+# 6GB VRAM budget only ever has to hold one of them at a time.
+>>>>>>> b4bdb17ef4b649cf4b58fdde635b7a1ed41829c3
 OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
 
 ORCHESTRATOR_MODEL = "qwen2.5:7b"    # general chat + tool calling
@@ -19,15 +24,21 @@ VISION_MODEL = "qwen2.5vl:3b"        # OCR/notification-screenshot extraction
 # lingering and starving whichever model runs next.
 ROUTER_KEEP_ALIVE = "30s"
 CHAT_KEEP_ALIVE = "2m"
+<<<<<<< HEAD
 VISION_KEEP_ALIVE = "30s"  # used a handful of times overnight, evict fast
+=======
+>>>>>>> b4bdb17ef4b649cf4b58fdde635b7a1ed41829c3
 
 # Aggressive context budgets appropriate for a 6GB card.
 ROUTER_NUM_CTX = 1024
 CHAT_NUM_CTX = 2048
+<<<<<<< HEAD
 # A real iPhone screenshot needs far more image tokens than a tiny test
 # image — observed 3882 tokens against a real lock-screen capture, so
 # budget well above that for headroom across different screen sizes.
 VISION_NUM_CTX = 8192
+=======
+>>>>>>> b4bdb17ef4b649cf4b58fdde635b7a1ed41829c3
 
 # Lower than Ollama's default (0.8) — small models stay on-instruction,
 # classify routes more consistently, and extract structured arguments

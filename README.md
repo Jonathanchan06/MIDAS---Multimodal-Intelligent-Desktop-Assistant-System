@@ -207,10 +207,17 @@ arguments (like `list_reminders`), it runs with zero LLM calls at all.
 
 
 ## Future additions
+<<<<<<< HEAD
 1. ~~Personal agent personality~~ — done: TTS now speaks every chat reply, not just the briefing.
 2. ~~Connect to iPhone~~ — done via Tailscale (see "Phone-to-PC API"). "Give access to computer" was explicitly discussed and shelved — needs careful scoping (allowlisted actions vs. open command execution) before any code gets written, not something to build casually. "Connect to Google account API" not started.
 3. ~~Is not aware of current news~~ — done: chat now has real date/time injected into its system prompt, and news/market questions correctly route to live data instead of the model guessing or hallucinating.
 4. Ship
+=======
+1. Personal agent personality
+2. Connect to Iphone, maybe give access to computer, connect to google account api
+3. Is not aware of current news
+4. Ship 
+>>>>>>> b4bdb17ef4b649cf4b58fdde635b7a1ed41829c3
 
 
 ## Additions:
@@ -219,7 +226,10 @@ arguments (like `list_reminders`), it runs with zero LLM calls at all.
 
 Added morning debrief feature.
 Planning to build overnight messages summarization feature. To overcome the obstacle of instagram not having an inherent API to return user messages and apple not having a notification reader function, the plan is to take screenshots everytime a notification pops up and sends it to qwen OCR to analyze it,then puts it in a DB to summarize in the morning
+<<<<<<< HEAD
 
 7/26/2026
 
 Built v1 of the overnight notification summarization feature described above — screenshot capture via a Shortcuts automation, `qwen2.5vl:3b` vision extraction, SQLite log, dedup in the morning briefing (see "Overnight notification summary"). 
+=======
+>>>>>>> b4bdb17ef4b649cf4b58fdde635b7a1ed41829c3
