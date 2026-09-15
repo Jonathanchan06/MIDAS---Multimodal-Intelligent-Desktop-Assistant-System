@@ -41,7 +41,6 @@ class ReminderRequest(BaseModel):
     remind_at: str
 
 
-<<<<<<< HEAD
 class NotificationCaptureResponse(BaseModel):
     status: str
 
@@ -61,8 +60,6 @@ def _process_notification_capture(orchestrator, image_bytes: bytes) -> None:
         logger.exception("background notification capture failed")
 
 
-=======
->>>>>>> b4bdb17ef4b649cf4b58fdde635b7a1ed41829c3
 def create_app(orchestrator) -> FastAPI:
     app = FastAPI(title="MIDAS", dependencies=[Depends(_require_token)])
 
