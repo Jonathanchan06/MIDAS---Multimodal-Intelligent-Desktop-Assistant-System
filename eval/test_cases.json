@@ -1,0 +1,10 @@
+[
+  {"text": "give a summary of today's news and stock market.", "expected_route": "briefing"},
+  {"text": "any news?", "expected_route": "briefing"},
+  {"text": "hows the weather today? what should i wear", "expected_route": "briefing"},
+  {"text": "tell me a joke", "expected_route": "chat"},
+  {"text": "hi", "expected_route": "chat"},
+  {"text": "remind me to defrost at 10pm", "expected_route": "add_reminder"},
+  {"text": "remind me of existing tasks", "expected_route": "list_reminders"},
+  {"text": "cancel all tasks", "expected_route": "delete_reminder"}
+]
