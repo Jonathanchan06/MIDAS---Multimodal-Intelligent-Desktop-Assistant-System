@@ -9,7 +9,8 @@ Each entry's "route" is the arch-router label Python matches on to invoke
 that tool deterministically (see core/orchestrator.py) — the model never
 chooses whether to call a tool. "describe" is a plain-Python formatter
 for the tool's result; "speak_prose" opts into an LLM prose pass instead,
-for the one tool (the briefing) that's meant to be read aloud.
+naming which prompt/style to format with (see Orchestrator._prose_formatters)
+for a tool whose result is meant to be read aloud rather than shown as text.
 """
 
 import logging
@@ -35,6 +36,24 @@ from tools.reminders import (
     describe_list_reminders,
     list_reminders,
 )
+from tools.wardrobe import (
+    ADD_WARDROBE_ITEM_SCHEMA,
+    DELETE_WARDROBE_ITEM_SCHEMA,
+    LIST_WARDROBE_ITEMS_SCHEMA,
+    SUGGEST_FIT_SCHEMA,
+    UPDATE_WARDROBE_ITEM_SCHEMA,
+    add_wardrobe_items,
+    delete_wardrobe_items,
+    describe_add_wardrobe_items,
+    describe_delete_wardrobe_items,
+    describe_list_wardrobe_items,
+    describe_update_wardrobe_items,
+    list_wardrobe_items,
+    resolve_add_items,
+    resolve_list_category,
+    suggest_fit,
+    update_wardrobe_items,
+)
 from ui.app import MidasApp
 
 logging.basicConfig(level=logging.INFO)
@@ -44,7 +63,7 @@ TOOL_REGISTRY = {
         "fn": run_morning_briefing,
         "schema": BRIEFING_SCHEMA,
         "route": "briefing",
-        "speak_prose": True,
+        "speak_prose": "briefing",
     },
     "add_reminder": {
         "fn": add_reminder,
@@ -63,6 +82,38 @@ TOOL_REGISTRY = {
         "schema": DELETE_REMINDER_SCHEMA,
         "route": "delete_reminder",
         "describe": describe_delete_reminder,
+    },
+    "suggest_fit": {
+        "fn": suggest_fit,
+        "schema": SUGGEST_FIT_SCHEMA,
+        "route": "suggest_fit",
+        "speak_prose": "outfit",
+    },
+    "add_wardrobe_item": {
+        "fn": add_wardrobe_items,
+        "schema": ADD_WARDROBE_ITEM_SCHEMA,
+        "route": "add_wardrobe_item",
+        "describe": describe_add_wardrobe_items,
+        "post_extract": resolve_add_items,
+    },
+    "list_wardrobe_items": {
+        "fn": list_wardrobe_items,
+        "schema": LIST_WARDROBE_ITEMS_SCHEMA,
+        "route": "list_wardrobe_items",
+        "describe": describe_list_wardrobe_items,
+        "post_extract": resolve_list_category,
+    },
+    "delete_wardrobe_item": {
+        "fn": delete_wardrobe_items,
+        "schema": DELETE_WARDROBE_ITEM_SCHEMA,
+        "route": "delete_wardrobe_item",
+        "describe": describe_delete_wardrobe_items,
+    },
+    "update_wardrobe_item": {
+        "fn": update_wardrobe_items,
+        "schema": UPDATE_WARDROBE_ITEM_SCHEMA,
+        "route": "update_wardrobe_item",
+        "describe": describe_update_wardrobe_items,
     },
 }
 

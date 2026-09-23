@@ -50,7 +50,14 @@ extraction (see "Overnight notification summary" below):
 ollama pull qwen2.5vl:3b
 ```
 
-Confirm all three are present:
+And the embedding model used for wardrobe/outfit matching (see "Wardrobe
+/ outfit suggestions" below):
+
+```
+ollama pull nomic-embed-text
+```
+
+Confirm all four are present:
 
 ```
 ollama list
@@ -86,6 +93,10 @@ Edit `config.py` for your watchlist tickers, news feeds, briefing time,
 `API_HOST` is already set to `0.0.0.0` so the server is reachable over
 Tailscale, not just loopback — the real access control is the token
 below, not the bind address.
+
+Also set `WEATHER_LAT` / `WEATHER_LON` in `config.py` to your real
+coordinates — they ship as NYC placeholders, used by the wardrobe
+feature's weather lookup (see below).
 
 Set a real shared-secret token for the phone API — use `setx`, not
 `set`, so it persists across terminal sessions instead of only the
@@ -178,6 +189,88 @@ the same notification several times (it stays on the lock screen until
 dismissed) and to consolidate duplicates into one mention rather than
 reading the same message back multiple times.
 
+## Wardrobe / outfit suggestions
+
+`suggest_fit` ("what should I wear today", "pick me an outfit for a job
+interview") picks an outfit from your own saved wardrobe using current
+weather (Open-Meteo, no API key needed) plus an optional occasion,
+formatted into spoken prose the same way the morning briefing is.
+Wardrobe items are managed entirely through chat — there's no separate
+UI, and everything lives in the `wardrobe_items` SQLite table alongside
+reminders.
+
+Setup: `ollama pull nomic-embed-text` (used to semantically match
+wardrobe items against a free-text occasion like "job interview") and
+set your real `WEATHER_LAT` / `WEATHER_LON` in `config.py`.
+
+### Adding items
+
+Talk to MIDAS directly — one or several at once:
+
+- "add my navy peacoat to my wardrobe"
+- "add a black hat and a red scarf"
+
+Only `category` and `name` are required; `color`, `warmth_level` (1-5),
+`formality` (1-5), and `tags` are optional and left unknown if you don't
+mention them — `suggest_fit` treats an unknown warmth/formality as
+"always eligible" rather than excluding the item, so a sparse item still
+gets suggested, just less precisely targeted.
+
+To bulk-import many items at once (e.g. seeding a fresh install), write
+them as JSON matching `scripts/wardrobe_seed.example.json` and run:
+
+```
+py -3.12 scripts/seed_wardrobe.py scripts/wardrobe_seed.example.json
+```
+
+Add `--dry-run` to validate without inserting. This isn't idempotent —
+re-running it inserts duplicates.
+
+### Editing fields
+
+Say what changed — only the field(s) you mention are touched, everything
+else on the item is left as-is:
+
+- "set the peacoat's warmth to 5"
+- "change my sweatshirt's color to blue"
+- "mark my thermal shirt as a base layer"
+
+If MIDAS doesn't know which item you mean, ask "what's in my closet"
+first (or "list my shoes") to see ids, then reference the id directly
+("set wardrobe item 3's warmth to 5"). Changing `name`/`category`/
+`color`/`tags` re-embeds the item so search stays accurate; changing only
+`warmth_level`/`formality`/`layer` skips that (no need to call the
+embedding model for a value that isn't part of the embedded text).
+
+There's no bulk-edit or find-and-replace yet — for anything chat can't
+reach, a direct SQLite edit is the escape hatch:
+
+```
+py -3.12 -c "from core.db import get_connection; c=get_connection(); c.execute('UPDATE wardrobe_items SET tags = ? WHERE id = ?', ('cotton, casual', 5)); c.commit(); c.close()"
+```
+
+### Removing items
+
+- "remove wardrobe item 5"
+- "delete items 5 and 6 from my wardrobe"
+
+### Layering
+
+`top`-category items can optionally be tagged with a layering role —
+`base` (worn against skin: thermals, undershirts) or `mid` (worn over
+that: sweaters, fleece) — via "mark my thermal shirt as a base layer" /
+"mark my fleece as a mid layer" (this is what the `layer` field is for,
+distinct from `tags`).
+
+On a day at or below `WARDROBE_LAYERING_MAX_TEMP` (40°F by default,
+`config.py`), `suggest_fit` tries to pick one `base` + one `mid` item
+together instead of a single top, on top of the usual outerwear pick if
+it's cold or rainy enough (`WARDROBE_OUTERWEAR_MAX_TEMP` /
+`WARDROBE_RAIN_PROBABILITY_THRESHOLD`). If your wardrobe doesn't have
+both roles tagged, it silently falls back to picking one warm top
+instead — layering is opportunistic, never required, and never blocks a
+suggestion.
+
 ## Adding a new tool
 
 Tool invocation is a deterministic Python decision (arch-router picks a
@@ -199,11 +292,40 @@ To add a tool:
    string formatting, no LLM call, no hallucination risk).
 2. Import both in `main.py` and add one entry to `TOOL_REGISTRY` with a
    unique `"route"` key, plus either `"describe": describe_<name>` or
-   `"speak_prose": True`.
+   `"speak_prose": "<style>"` (a key into `Orchestrator._prose_formatters`
+   — add a new prompt + formatter method there for a genuinely new style,
+   or reuse an existing one).
 
 No other file needs to change — `Orchestrator` builds its route list and
 dispatch table from `TOOL_REGISTRY` alone. If the tool takes no required
 arguments (like `list_reminders`), it runs with zero LLM calls at all.
+
+Optional: `"post_extract": fn` runs `fn(text, arguments) -> arguments`
+after extraction and before the tool call, for cases where a schema field
+being *required* (needed so extraction runs at all — see
+`core/orchestrator.py`'s `_run_tool_route`) forces the model to produce a
+value even when the user's text doesn't actually specify one, and the
+model's default guess isn't trustworthy. `tools/wardrobe.py`'s
+`resolve_list_category` is the example: `list_wardrobe_items`' `category`
+is required, so a fully generic "what's in my wardrobe" still has to get
+some category back from extraction — observed defaulting to a fixed
+wrong one rather than "all". The hook checks the extracted category
+actually appears in the user's own words before trusting it, falling
+back to "all" otherwise.
+
+Keep route descriptions lean — only `schema.function.description` (not
+the per-field descriptions inside `parameters`) gets concatenated into
+one prompt for every registered tool and sent to `arch-router` on *every*
+message. This is a shared, finite budget (`ROUTER_NUM_CTX` in
+`config.py`): letting one tool's top-level description balloon with
+extraction-only detail (which belongs on the relevant field inside
+`parameters` instead) eats into every other tool's share and can degrade
+classification broadly, not just for that tool — confirmed directly: at
+10 routes this hit ~1031 estimated tokens against a 1024-token budget and
+silently corrupted routing across the board until `ROUTER_NUM_CTX` was
+raised to 2048. Worth spot-checking route-description length (and
+re-running `eval/router_eval.py`) after adding a tool, especially as the
+tool count grows.
 
 
 ## Future additions
@@ -223,3 +345,9 @@ Planning to build overnight messages summarization feature. To overcome the obst
 7/26/2026
 
 Built v1 of the overnight notification summarization feature described above — screenshot capture via a Shortcuts automation, `qwen2.5vl:3b` vision extraction, SQLite log, dedup in the morning briefing (see "Overnight notification summary"). 
+
+9/23/2026
+
+Built the wardrobe/outfit-suggestion feature (see "Wardrobe / outfit suggestions"): `core/memory.py` as a generic numpy-based embedding/retrieval primitive (no vector DB — personal-scale data, a linear cosine scan is effectively free), a `wardrobe_items` table, and `suggest_fit`/`add_wardrobe_item`/`update_wardrobe_item`/`delete_wardrobe_item`/`list_wardrobe_items` tools, all batch-capable (one message can add/update/remove several items at once). Added base/mid layering support for cold-weather outfits. Chat-history RAG (the other half of the original embeddings idea) stayed deliberately unbuilt — real payoff given the tiny `CHAT_NUM_CTX` budget, but not worth it until it's actually felt.
+
+Also landed three fixes worth remembering: (1) a `post_extract` registry hook, since a *required* schema field (needed just to make extraction run at all) can force the model to guess when the user's text doesn't actually specify one — `resolve_list_category` sanity-checks that guess against the user's own words; (2) `ROUTER_NUM_CTX` was too tight for the grown route list — only `schema.function.description` feeds `arch-router`'s one shared prompt, and letting one tool's description balloon silently corrupts *every* tool's routing, not just its own; (3) a real incident where "list wardrobe now" got misrouted to `add_wardrobe_item`, and since `items` is required, extraction hallucinated ~19 items straight out of conversation history rather than admitting there was nothing to add — silently duplicated 18 items before being caught. `resolve_add_items` now drops any extracted item whose name doesn't actually appear in the user's own message, so a future misroute into a *mutating* tool produces a harmless no-op instead of corrupting data — this pattern (verify extraction against the raw text, not just the schema) is worth applying to any future tool whose required fields could get invented under a misroute, not just this one. See "Adding a new tool" for all three.

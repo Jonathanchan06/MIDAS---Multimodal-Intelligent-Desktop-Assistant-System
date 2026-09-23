@@ -20,3 +20,6 @@ Thumbs.db
 
 # Env / secrets
 .env
+
+# Personal data
+data/wardrobe_seed.json

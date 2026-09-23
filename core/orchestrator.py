@@ -104,6 +104,21 @@ BRIEFING_FORMAT_PROMPT = (
     "— this will be read aloud by a TTS engine."
 )
 
+OUTFIT_FORMAT_PROMPT = (
+    "Turn this raw outfit-suggestion JSON into two or three short spoken "
+    "sentences, entirely in English. Open with the weather in one clause "
+    "— the temperature plus anything notable like rain, wind, or cold — "
+    "then name the specific garments that were picked, using their names "
+    "and colors exactly as written in the JSON. If 'picks' has both a "
+    "top_base and a top_mid entry, describe them together as a layered "
+    "outfit (e.g. 'layer a ... under a ...'), not as two separate items. "
+    "Mention outerwear only if an outerwear pick is present. Repeat "
+    "anything in the 'notes' list as plain speech. Never invent a garment, a color, or a "
+    "temperature that is not in the JSON, and never read out numeric "
+    "scores or item ids. Plain prose, no markdown, no bullet points — "
+    "this will be read aloud by a TTS engine."
+)
+
 EXTRACTION_SYSTEM_PROMPT = (
     "Current datetime: {now}. Extract the arguments for the user's "
     "request as JSON matching the given schema. Keep any free-text field "
@@ -135,6 +150,15 @@ class Orchestrator:
             )
             self._route_to_tool[route_name] = (name, entry)
         self._routes = routes
+
+        # Maps a registry entry's "speak_prose" value to the method that
+        # turns its raw dict result into spoken prose. Keeping this as a
+        # lookup table (rather than an if/elif on tool name) matches
+        # main.py's own "no if/else dispatch chains" principle.
+        self._prose_formatters: dict[str, Callable[[dict], str]] = {
+            "briefing": self.format_briefing,
+            "outfit": self.format_outfit,
+        }
 
     def route(self, text: str, history: list[dict]) -> str:
         """Classifies into one of self._routes via Arch-Router's
@@ -206,11 +230,22 @@ class Orchestrator:
             except Exception:
                 logger.exception("argument extraction failed for '%s'", name)
 
+        post_extract = entry.get("post_extract")
+        if post_extract:
+            try:
+                arguments = post_extract(text, arguments)
+            except Exception:
+                logger.exception("post-extraction hook failed for '%s'", name)
+
         outcome = self._call_tool(name, arguments)
         if not outcome["ok"]:
             return f"Sorry, that didn't work: {outcome['error']}"
-        if entry.get("speak_prose"):
-            return self.format_briefing(outcome["result"])
+        style = entry.get("speak_prose")
+        if style:
+            formatter = self._prose_formatters.get(style)
+            if formatter:
+                return formatter(outcome["result"])
+            logger.warning("unknown prose style %r for tool '%s'", style, name)
         describe = entry.get("describe")
         if describe:
             return describe(outcome["result"])
@@ -282,25 +317,38 @@ class Orchestrator:
             on_token,
         )
 
-    def format_briefing(self, raw: dict) -> str:
-        """One-shot call that turns a deterministic briefing payload into
-        TTS-ready prose — the one place an LLM call is used purely for
-        phrasing, per the original spec, rather than for a decision. The
-        greeting is prepended in Python, not left to the model to
-        remember — same reasoning as the reminder confirmations: a fixed,
-        short prefix doesn't need to go through generation at all."""
+    def _format_prose(self, system_prompt: str, raw: dict) -> str:
+        """Shared one-shot call that turns a deterministic dict payload
+        into TTS-ready prose — the one place an LLM call is used purely
+        for phrasing rather than for a decision. Only the system prompt
+        varies per caller (format_briefing, format_outfit)."""
         response = self.client.chat(
             model=config.ORCHESTRATOR_MODEL,
             messages=[
-                {"role": "system", "content": BRIEFING_FORMAT_PROMPT},
+                {"role": "system", "content": system_prompt},
                 {"role": "user", "content": json.dumps(raw, default=str)},
             ],
             keep_alive=config.CHAT_KEEP_ALIVE,
             options={"num_ctx": config.CHAT_NUM_CTX, "temperature": config.CHAT_TEMPERATURE},
             stream=False,
         )
-        prose = response.message.content.strip()
+        return response.message.content.strip()
+
+    def format_briefing(self, raw: dict) -> str:
+        """Turns a briefing payload into spoken prose. The greeting is
+        prepended in Python, not left to the model to remember — same
+        reasoning as the reminder confirmations: a fixed, short prefix
+        doesn't need to go through generation at all."""
+        prose = self._format_prose(BRIEFING_FORMAT_PROMPT, raw)
         return f"Good morning, {config.USER_NAME}. {prose}"
+
+    def format_outfit(self, raw: dict) -> str:
+        """Wardrobe counterpart to format_briefing. A separate prompt
+        rather than reusing BRIEFING_FORMAT_PROMPT: that prompt names
+        markets/headlines/notifications by section, and format_briefing's
+        "Good morning" prefix would be wrong for e.g. a 7pm "what should
+        I wear to dinner" query."""
+        return self._format_prose(OUTFIT_FORMAT_PROMPT, raw)
 
     def extract_notification_text(self, image_bytes: bytes) -> str:
         """One-shot vision call: turns a lock-screen screenshot into a
