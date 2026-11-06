@@ -19,7 +19,12 @@ BRIEFING_SCHEMA = {
             "Call this for any request about a briefing, market update, "
             "stock prices, or news — including short phrasings like 'any "
             "news?', 'what's new', 'what's happening', or 'what's going "
-            "on today', not just the word 'briefing' itself."
+            "on today', not just the word 'briefing' itself. Also call "
+            "this for indirect phrasings that never say 'news' or "
+            "'briefing' at all but still ask about markets or a catch-up "
+            "— e.g. 'catch me up on today', 'how are my stocks doing', "
+            "or any question naming a specific ticker/stock, like 'how's "
+            "NVDA doing'."
         ),
         "parameters": {"type": "object", "properties": {}, "required": []},
     },

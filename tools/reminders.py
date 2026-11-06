@@ -22,9 +22,13 @@ ADD_REMINDER_SCHEMA = {
     "function": {
         "name": "add_reminder",
         "description": (
-            "Create a reminder or calendar alert for the user. Call this "
-            "whenever the user asks to be reminded of something or wants "
-            "to schedule an alert."
+            "Create a NEW reminder or calendar alert for the user. Call "
+            "this when the user asks to be reminded of something not yet "
+            "saved — e.g. 'remind me to call mom at 5pm', 'set a reminder "
+            "for the meeting tomorrow'. Do NOT call this when the user "
+            "asks to see, check, or hear reminders that already exist "
+            "(e.g. 'remind me of my tasks', 'what are my reminders') — "
+            "that's list_reminders."
         ),
         "parameters": {
             "type": "object",
@@ -52,7 +56,14 @@ LIST_REMINDERS_SCHEMA = {
     "type": "function",
     "function": {
         "name": "list_reminders",
-        "description": "List the user's upcoming (not yet completed) reminders.",
+        "description": (
+            "List the user's upcoming (not yet completed) reminders. Call "
+            "this when the user asks to see, check, or hear reminders "
+            "they already have — e.g. 'what are my reminders', 'remind me "
+            "of my existing tasks', 'what do I have coming up', 'show my "
+            "reminders'. Do NOT call this to create a new reminder — "
+            "that's add_reminder."
+        ),
         "parameters": {
             "type": "object",
             "properties": {
@@ -70,7 +81,14 @@ DELETE_REMINDER_SCHEMA = {
     "type": "function",
     "function": {
         "name": "delete_reminder",
-        "description": "Delete or cancel a reminder by its id.",
+        "description": (
+            "Delete or cancel one of the user's existing reminders by id "
+            "— e.g. 'cancel my dentist reminder', 'delete reminder #3', "
+            "'never mind that reminder about the meeting'. If the id "
+            "isn't obvious from the conversation, call list_reminders "
+            "first to look it up. Do NOT call this to create or list "
+            "reminders."
+        ),
         "parameters": {
             "type": "object",
             "properties": {
