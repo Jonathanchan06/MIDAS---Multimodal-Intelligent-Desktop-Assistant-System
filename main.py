@@ -11,6 +11,8 @@ chooses whether to call a tool. "describe" is a plain-Python formatter
 for the tool's result; "speak_prose" opts into an LLM prose pass instead,
 naming which prompt/style to format with (see Orchestrator._prose_formatters)
 for a tool whose result is meant to be read aloud rather than shown as text.
+"spoken" (optional) is a shorter formatter used for speech only, when the
+on-screen text (e.g. a full list) would be slow and useless read aloud.
 """
 
 import logging
@@ -36,11 +38,13 @@ from tools.reminders import (
     describe_delete_reminder,
     describe_list_reminders,
     list_reminders,
+    speak_list_reminders,
 )
 from tools.wardrobe import (
     ADD_WARDROBE_ITEM_SCHEMA,
     DELETE_WARDROBE_ITEM_SCHEMA,
     LIST_WARDROBE_ITEMS_SCHEMA,
+    MARK_WORN_SCHEMA,
     SUGGEST_FIT_SCHEMA,
     UPDATE_WARDROBE_ITEM_SCHEMA,
     add_wardrobe_items,
@@ -48,10 +52,17 @@ from tools.wardrobe import (
     describe_add_wardrobe_items,
     describe_delete_wardrobe_items,
     describe_list_wardrobe_items,
+    describe_mark_worn,
     describe_update_wardrobe_items,
     list_wardrobe_items,
+    mark_worn,
     resolve_add_items,
+    resolve_delete_refs,
+    resolve_fit_occasion,
     resolve_list_category,
+    resolve_update_refs,
+    resolve_worn_refs,
+    speak_list_wardrobe_items,
     suggest_fit,
     update_wardrobe_items,
 )
@@ -69,7 +80,13 @@ def _configure_logging() -> None:
     exists. Under pythonw.exe — how MIDAS runs in the background, e.g.
     from a startup shortcut — sys.stdout/stderr are None: anything that
     writes to them would crash, notably uvicorn's default log config,
-    which kills the API thread at startup. Point them at a file instead."""
+    which kills the API thread at startup. Point them at a file instead.
+
+    Testing this path: launching pythonw from Git Bash hides the problem
+    (it inherits the shell's pipes, so stdout/stderr aren't None) — use
+    PowerShell `Start-Process` to reproduce a real shortcut launch. Also,
+    the venv's pythonw.exe is a launcher that spawns the real interpreter
+    as a *child* process, so any window/PID check must look at the child."""
     from logging.handlers import RotatingFileHandler
 
     config.DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -121,6 +138,7 @@ TOOL_REGISTRY = {
         "schema": LIST_REMINDERS_SCHEMA,
         "route": "list_reminders",
         "describe": describe_list_reminders,
+        "spoken": speak_list_reminders,
     },
     "delete_reminder": {
         "fn": delete_reminder,
@@ -133,6 +151,7 @@ TOOL_REGISTRY = {
         "schema": SUGGEST_FIT_SCHEMA,
         "route": "suggest_fit",
         "speak_prose": "outfit",
+        "post_extract": resolve_fit_occasion,
     },
     "add_wardrobe_item": {
         "fn": add_wardrobe_items,
@@ -146,6 +165,7 @@ TOOL_REGISTRY = {
         "schema": LIST_WARDROBE_ITEMS_SCHEMA,
         "route": "list_wardrobe_items",
         "describe": describe_list_wardrobe_items,
+        "spoken": speak_list_wardrobe_items,
         "post_extract": resolve_list_category,
     },
     "delete_wardrobe_item": {
@@ -153,12 +173,21 @@ TOOL_REGISTRY = {
         "schema": DELETE_WARDROBE_ITEM_SCHEMA,
         "route": "delete_wardrobe_item",
         "describe": describe_delete_wardrobe_items,
+        "post_extract": resolve_delete_refs,
     },
     "update_wardrobe_item": {
         "fn": update_wardrobe_items,
         "schema": UPDATE_WARDROBE_ITEM_SCHEMA,
         "route": "update_wardrobe_item",
         "describe": describe_update_wardrobe_items,
+        "post_extract": resolve_update_refs,
+    },
+    "mark_worn": {
+        "fn": mark_worn,
+        "schema": MARK_WORN_SCHEMA,
+        "route": "mark_worn",
+        "describe": describe_mark_worn,
+        "post_extract": resolve_worn_refs,
     },
 }
 

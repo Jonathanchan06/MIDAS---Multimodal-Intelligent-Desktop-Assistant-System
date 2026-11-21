@@ -167,6 +167,18 @@ def describe_list_reminders(results: list[dict]) -> str:
     return "Your reminders:\n" + "\n".join(lines)
 
 
+def speak_list_reminders(results: list[dict]) -> str:
+    """Spoken counterpart to describe_list_reminders: ids and raw ISO
+    timestamps read aloud are noise, so name the next couple and point
+    at the screen for the rest."""
+    if not results:
+        return "You have no upcoming reminders."
+    upcoming = "; ".join(r["text"] for r in results[:2])
+    if len(results) <= 2:
+        return f"You have {len(results)} reminder{'s' if len(results) > 1 else ''}: {upcoming}."
+    return f"You have {len(results)} reminders. Next up: {upcoming}. The rest are on screen."
+
+
 def delete_reminder(reminder_id: int) -> dict:
     conn = get_connection()
     try:

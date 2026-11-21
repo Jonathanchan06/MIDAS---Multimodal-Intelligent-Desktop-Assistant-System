@@ -177,7 +177,11 @@ class Orchestrator:
                 model=config.ROUTER_MODEL,
                 messages=[{"role": "user", "content": prompt}],
                 keep_alive=config.ROUTER_KEEP_ALIVE,
-                options={"num_ctx": config.ROUTER_NUM_CTX, "temperature": config.ROUTER_TEMPERATURE},
+                options={
+                    "num_ctx": config.ROUTER_NUM_CTX,
+                    "temperature": config.ROUTER_TEMPERATURE,
+                    "num_gpu": config.ROUTER_NUM_GPU,
+                },
                 stream=False,
                 format="json",
             )
@@ -198,6 +202,19 @@ class Orchestrator:
             logger.exception("tool '%s' raised", name)
             return {"ok": False, "error": str(exc)}
 
+    @staticmethod
+    def _bound_strings(schema):
+        """Copy of a JSON schema with a default maxLength on every
+        free-text string (see config.EXTRACTION_MAX_STRING_LENGTH)."""
+        if isinstance(schema, list):
+            return [Orchestrator._bound_strings(s) for s in schema]
+        if not isinstance(schema, dict):
+            return schema
+        bounded = {k: Orchestrator._bound_strings(v) for k, v in schema.items()}
+        if bounded.get("type") == "string" and "enum" not in bounded and "maxLength" not in bounded:
+            bounded["maxLength"] = config.EXTRACTION_MAX_STRING_LENGTH
+        return bounded
+
     def _extract_arguments(self, params_schema: dict, text: str, history: list[dict]) -> dict:
         messages = [
             {
@@ -212,14 +229,38 @@ class Orchestrator:
         response = self.client.chat(
             model=config.ORCHESTRATOR_MODEL,
             messages=messages,
-            format=params_schema,
+            format=self._bound_strings(params_schema),
+            think=config.ORCHESTRATOR_THINK,
             keep_alive=config.CHAT_KEEP_ALIVE,
-            options={"num_ctx": config.CHAT_NUM_CTX, "temperature": 0.1},
+            options={
+                "num_ctx": config.CHAT_NUM_CTX,
+                **config.ORCHESTRATOR_SAMPLING,
+                "num_predict": config.EXTRACTION_MAX_TOKENS,
+            },
             stream=False,
         )
+        # A capped (truncated) generation is invalid JSON — raising here
+        # lands in _run_tool_route's handler, which runs with no arguments.
         return json.loads(response.message.content)
 
-    def _run_tool_route(self, tool_match: tuple[str, dict], text: str, history: list[dict]) -> str:
+    def _run_tool_route(
+        self, tool_match: tuple[str, dict], text: str, history: list[dict]
+    ) -> tuple[str, str]:
+        """Returns (display text, spoken text). They differ only for tools
+        with a "spoken" formatter — e.g. a full list shown on screen but
+        summarized aloud instead of read item by item."""
+        display, result = self._run_tool(tool_match, text, history)
+        spoken_fn = tool_match[1].get("spoken")
+        if spoken_fn and result is not None:
+            try:
+                return display, spoken_fn(result)
+            except Exception:
+                logger.exception("spoken formatter failed for '%s'", tool_match[0])
+        return display, display
+
+    def _run_tool(
+        self, tool_match: tuple[str, dict], text: str, history: list[dict]
+    ) -> tuple[str, object]:
         name, entry = tool_match
         params = entry["schema"]["function"]["parameters"]
 
@@ -239,25 +280,25 @@ class Orchestrator:
 
         outcome = self._call_tool(name, arguments)
         if not outcome["ok"]:
-            return f"Sorry, that didn't work: {outcome['error']}"
+            return f"Sorry, that didn't work: {outcome['error']}", None
+        result = outcome["result"]
         style = entry.get("speak_prose")
         if style:
             formatter = self._prose_formatters.get(style)
             if formatter:
-                return formatter(outcome["result"])
+                return formatter(result), result
             logger.warning("unknown prose style %r for tool '%s'", style, name)
         describe = entry.get("describe")
         if describe:
-            return describe(outcome["result"])
-        return json.dumps(outcome["result"], default=str)
+            return describe(result), result
+        return json.dumps(result, default=str), result
 
     def _stream_plain(
         self,
         model: str,
         system_prompt: str,
         keep_alive: str,
-        num_ctx: int,
-        temperature: float,
+        options: dict,
         text: str,
         history: list[dict],
         on_token: Callable[[str], None],
@@ -271,8 +312,9 @@ class Orchestrator:
         for chunk in self.client.chat(
             model=model,
             messages=messages,
+            think=config.ORCHESTRATOR_THINK if model == config.ORCHESTRATOR_MODEL else None,
             keep_alive=keep_alive,
-            options={"num_ctx": num_ctx, "temperature": temperature},
+            options=options,
             stream=True,
         ):
             content = chunk.message.content
@@ -287,31 +329,50 @@ class Orchestrator:
         history: list[dict],
         on_token: Callable[[str], None],
         on_route: Callable[[str], None] | None = None,
+        on_speech: Callable[[str], None] | None = None,
     ) -> str:
         """Routes the message, then either streams tokens live (chat) or
         runs a deterministic tool dispatch and delivers its result as a
         single chunk to on_token. Returns the final full text either way.
         on_route (if given) is called once with the model name that ended
-        up handling the request, so a UI can reflect it."""
+        up handling the request, so a UI can reflect it.
+
+        on_speech (if given) receives the text meant to be spoken, as
+        early as possible: chat tokens as they stream (so TTS can start on
+        the first sentence), or a tool's spoken summary in one chunk. The
+        Orchestrator still never touches TTS itself — the caller decides
+        what to do with this text."""
         route = self.route(text, history)
 
         tool_match = self._route_to_tool.get(route)
         if tool_match:
             if on_route:
                 on_route(config.ORCHESTRATOR_MODEL)
-            full_text = self._run_tool_route(tool_match, text, history)
+            full_text, spoken = self._run_tool_route(tool_match, text, history)
             on_token(full_text)
+            if on_speech:
+                on_speech(spoken)
             return full_text
 
         if on_route:
             on_route(config.ORCHESTRATOR_MODEL)
+        if on_speech:
+            display_token = on_token
+
+            def on_token(token: str) -> None:
+                display_token(token)
+                on_speech(token)
+
         now = datetime.now().strftime("%A, %B %d, %Y, %H:%M")
         return self._stream_plain(
             config.ORCHESTRATOR_MODEL,
             CHAT_SYSTEM_PROMPT.format(now=now),
             config.CHAT_KEEP_ALIVE,
-            config.CHAT_NUM_CTX,
-            config.CHAT_TEMPERATURE,
+            {
+                "num_ctx": config.CHAT_NUM_CTX,
+                **config.ORCHESTRATOR_SAMPLING,
+                "num_predict": config.CHAT_MAX_TOKENS,
+            },
             text,
             history,
             on_token,
@@ -328,8 +389,13 @@ class Orchestrator:
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": json.dumps(raw, default=str)},
             ],
+            think=config.ORCHESTRATOR_THINK,
             keep_alive=config.CHAT_KEEP_ALIVE,
-            options={"num_ctx": config.CHAT_NUM_CTX, "temperature": config.CHAT_TEMPERATURE},
+            options={
+                "num_ctx": config.CHAT_NUM_CTX,
+                **config.ORCHESTRATOR_SAMPLING,
+                "num_predict": config.PROSE_MAX_TOKENS,
+            },
             stream=False,
         )
         return response.message.content.strip()

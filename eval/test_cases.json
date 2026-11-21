@@ -157,5 +157,20 @@
   {"text": "set item 6's color to grey", "expected_route": "update_wardrobe_item"},
   {"text": "change the formality of my suit to 5", "expected_route": "update_wardrobe_item"},
   {"text": "update wardrobe item 11 to be an outerwear item", "expected_route": "update_wardrobe_item"},
-  {"text": "retag my hoodie as casual", "expected_route": "update_wardrobe_item"}
+  {"text": "retag my hoodie as casual", "expected_route": "update_wardrobe_item"},
+  {"text": "I'm wearing that", "expected_route": "mark_worn"},
+  {"text": "ok I'll wear that outfit", "expected_route": "mark_worn"},
+  {"text": "I wore my grey hoodie today", "expected_route": "mark_worn"},
+  {"text": "wearing the navy sweater and chinos today", "expected_route": "mark_worn"},
+  {"text": "going with that fit", "expected_route": "mark_worn"},
+  {"text": "I put on my black jeans this morning", "expected_route": "mark_worn"},
+  {"text": "mark my peacoat as worn", "expected_route": "mark_worn"},
+  {"text": "I wore the denim jacket yesterday", "expected_route": "mark_worn"},
+  {"text": "sounds good, I'll wear it", "expected_route": "mark_worn"},
+  {"text": "log that I wore my white sneakers today", "expected_route": "mark_worn"},
+  {"text": "I'm going with the flannel today", "expected_route": "mark_worn"},
+  {"text": "wore my suit to the wedding", "expected_route": "mark_worn"},
+  {"text": "taking your suggestion, wearing that", "expected_route": "mark_worn"},
+  {"text": "I had my red scarf on today", "expected_route": "mark_worn"},
+  {"text": "yep wearing that one", "expected_route": "mark_worn"}
 ]

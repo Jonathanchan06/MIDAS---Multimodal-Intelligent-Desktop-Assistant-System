@@ -11,19 +11,37 @@ BASE_DIR = Path(__file__).resolve().parent
 # VRAM budget only ever has to hold one of them at a time.
 OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
 
-ORCHESTRATOR_MODEL = "qwen2.5:7b"    # general chat + tool calling
+ORCHESTRATOR_MODEL = "qwen3:8b"      # general chat + tool calling
+# qwen3 is a hybrid reasoning model. Thinking adds seconds of hidden tokens
+# before every reply/extraction and eats the small CHAT_NUM_CTX, so it's
+# off for every ORCHESTRATOR_MODEL call. Only pass `think` to that model —
+# the router/vision models don't support it.
+ORCHESTRATOR_THINK = False
 ROUTER_MODEL = "arch-router:1.5b"    # single-word traffic classifier
 VISION_MODEL = "qwen2.5vl:3b"        # OCR/notification-screenshot extraction
 EMBED_MODEL = "nomic-embed-text"     # 768-dim text embeddings for retrieval
 # Not used anywhere until core/memory.py — must be pulled once separately:
 #   ollama pull nomic-embed-text
 
-# Short keep-alives so idle models evict from VRAM quickly instead of
-# lingering and starving whichever model runs next.
-ROUTER_KEEP_ALIVE = "30s"
-CHAT_KEEP_ALIVE = "2m"
+# GPU placement. The router and embedder run on CPU (num_gpu=0 layers on
+# GPU) so ORCHESTRATOR_MODEL can stay resident in VRAM. With the router on
+# GPU, qwen3:8b (~4.1GB of VRAM) and arch-router (~1.1GB) couldn't
+# co-reside, so EVERY message unloaded one and reloaded the other: ~4s
+# router load + ~8.5s chat reload ≈ 12s before any work (measured, same
+# with qwen2.5:7b). On CPU the router takes ~1.4s warm (Ollama caches the
+# fixed route-list prompt prefix; the first call after a load is ~8s).
+ROUTER_NUM_GPU = 0
+EMBED_NUM_GPU = 0
+
+# Keep-alives. The CPU-resident models only cost system RAM (~1.1GB
+# router, ~0.3GB embedder), so they stay loaded long — reloading the
+# router also throws away its prompt cache. The chat model is now the only
+# thing normally in VRAM, so it can stay too; when the vision model needs
+# VRAM overnight, Ollama evicts the idle chat model to make room.
+ROUTER_KEEP_ALIVE = "30m"
+CHAT_KEEP_ALIVE = "10m"
 VISION_KEEP_ALIVE = "30s"  # used a handful of times overnight, evict fast
-EMBED_KEEP_ALIVE = "30s"   # tiny model, called in short bursts — evict fast
+EMBED_KEEP_ALIVE = "30m"
 
 # Aggressive context budgets appropriate for a 6GB card. ROUTER_NUM_CTX
 # needs headroom for the full route list (every registered tool's
@@ -43,7 +61,32 @@ EMBED_NUM_CTX = 2048      # nomic-embed-text's native context window
 # classify routes more consistently, and extract structured arguments
 # more reliably at low temperature.
 ROUTER_TEMPERATURE = 0.1
-CHAT_TEMPERATURE = 0.3
+
+# Sampling for every ORCHESTRATOR_MODEL call (chat, extraction, prose):
+# Qwen's recommended non-thinking-mode settings. NOT low-temperature —
+# qwen3 near-greedy falls into endless repetition (observed: extracting
+# "what should I wear today" at temperature 0.1 looped "general advice
+# for the day ahead / ..." forever). No presence_penalty: Qwen lists it
+# as an anti-repetition option, but at 1.5 it caused language mixing
+# (Chinese characters inside extracted English fields). Loops are instead
+# made impossible in extraction by EXTRACTION_MAX_STRING_LENGTH, and
+# bounded elsewhere by the *_MAX_TOKENS caps below.
+# If ORCHESTRATOR_MODEL goes back to qwen2.5:7b, {"temperature": 0.3}
+# is what it was tuned with.
+ORCHESTRATOR_SAMPLING = {"temperature": 0.7, "top_p": 0.8, "top_k": 20}
+
+# Default JSON-schema maxLength the orchestrator adds to every free-text
+# string field it asks the model to fill (enum fields and fields with
+# their own maxLength are left alone). Ollama enforces it in the grammar,
+# so a repetition loop inside a string can't happen at all.
+EXTRACTION_MAX_STRING_LENGTH = 120
+
+# Output caps (num_predict). Backstops, not targets: Ollama doesn't stop
+# a runaway generation at num_ctx — it context-shifts and keeps going, so
+# without a cap one bad generation hangs the caller indefinitely.
+EXTRACTION_MAX_TOKENS = 256   # real extractions are ~15-60 tokens
+PROSE_MAX_TOKENS = 400        # briefing / outfit spoken prose
+CHAT_MAX_TOKENS = 1024
 
 # --- Storage -------------------------------------------------------------
 DATA_DIR = BASE_DIR / "data"
@@ -100,6 +143,13 @@ WARDROBE_RAIN_PROBABILITY_THRESHOLD = 40  # percent; forces outerwear
 WARDROBE_LAYER_ROLES = ["base", "mid"]
 WARDROBE_LAYERING_MAX_TEMP = 40
 
+# Rotation: items marked worn (mark_worn tool) within this many days are
+# skipped when ranking a category, unless that would leave nothing.
+WARDROBE_REWEAR_DAYS = 3
+# "I'm wearing that" refers to the last suggested outfit only if it was
+# suggested within this window; older than that, MIDAS asks which items.
+WARDROBE_SUGGESTION_TTL_HOURS = 12
+
 # Free-text occasion -> target formality. Deterministic substring match;
 # anything unmatched falls through to embedding similarity alone.
 WARDROBE_FORMALITY_KEYWORDS = {
@@ -115,11 +165,17 @@ WARDROBE_ALTERNATES_PER_CATEGORY = 2  # extras returned alongside each pick
 
 # --- Text-to-speech (Kokoro via kokoro-onnx) ------------------------------
 MODELS_DIR = BASE_DIR / "models"
-KOKORO_MODEL_PATH = MODELS_DIR / "kokoro-v1.0.int8.onnx"
+# fp16, not int8: measured on this laptop (Ryzen 7 7735HS, idle CPU) int8
+# ran at 2.7x slower than real time vs ~0.3x for fp16 (fp32 ~0.4x) — int8
+# ONNX ops are poorly optimized on many CPUs despite the smaller file.
+KOKORO_MODEL_PATH = MODELS_DIR / "kokoro-v1.0.fp16.onnx"
 KOKORO_VOICES_PATH = MODELS_DIR / "voices-v1.0.bin"
 KOKORO_VOICE = "af_heart"
 KOKORO_SPEED = 1.0
 KOKORO_LANG = "en-us"
+# Longest run of text sent to synthesis without a sentence end — longer
+# unpunctuated text is cut at a comma/space so speech isn't held back.
+TTS_MAX_CHUNK_CHARS = 250
 
 # --- FastAPI (phone-to-PC) -------------------------------------------------
 # Bound to all interfaces so the Tailscale interface can reach it; the

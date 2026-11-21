@@ -37,7 +37,7 @@ def embed_texts(texts: Sequence[str]) -> np.ndarray:
         model=config.EMBED_MODEL,
         input=list(texts),
         keep_alive=config.EMBED_KEEP_ALIVE,
-        options={"num_ctx": config.EMBED_NUM_CTX},
+        options={"num_ctx": config.EMBED_NUM_CTX, "num_gpu": config.EMBED_NUM_GPU},
     )
     return np.asarray(response.embeddings, dtype=config.EMBED_DTYPE)
 

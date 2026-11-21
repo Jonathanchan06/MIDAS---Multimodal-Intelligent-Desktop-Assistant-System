@@ -278,6 +278,7 @@ class MidasApp(ctk.CTk):
             self._queue.put(("done", (request, f"[error: {exc}]")))
             return
         self._queue.put(("done", (request, prose)))
+        self.tts_engine.stop()  # an explicit request beats anything still playing
         self.tts_engine.speak(prose)
 
     # -- transcript -----------------------------------------------------------
@@ -351,19 +352,21 @@ class MidasApp(ctk.CTk):
         def on_route(model: str):
             self._queue.put(("route", model))
 
+        # A new message cuts off whatever MIDAS is still saying — otherwise
+        # replies queue behind each other and speech falls further and
+        # further behind the conversation.
+        self.tts_engine.stop()
+        utterance = self.tts_engine.start_utterance()
         try:
             full_text = self.orchestrator.stream_response(
-                text, history_snapshot, on_token, on_route
+                text, history_snapshot, on_token, on_route, on_speech=utterance.feed
             )
         except Exception as exc:
             full_text = f"[error: {exc}]"
+        finally:
+            utterance.close()  # speak whatever's left; returns immediately
 
         self._queue.put(("done", (text, full_text)))
-
-        # This thread is already off the Tkinter main thread, so blocking
-        # here on playback is safe.
-        if full_text:
-            self.tts_engine.speak(full_text)
 
     def _poll_queue(self):
         try:

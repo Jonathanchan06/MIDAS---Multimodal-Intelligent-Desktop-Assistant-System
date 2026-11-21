@@ -39,6 +39,14 @@ CREATE TABLE IF NOT EXISTS wardrobe_items (
     embedding BLOB,
     created_at TEXT NOT NULL
 );
+
+-- What suggest_fit last picked, so "I'm wearing that" (mark_worn) knows
+-- which items "that" means. item_ids is a JSON array.
+CREATE TABLE IF NOT EXISTS outfit_suggestions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    suggested_at TEXT NOT NULL,
+    item_ids TEXT NOT NULL
+);
 """
 
 
