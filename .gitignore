@@ -23,6 +23,10 @@ Thumbs.db
 
 # Personal data
 data/wardrobe_seed.json
+data/*.db
+
+# Private planning notes (kept locally only)
+ROADMAP.md
 
 # Per-machine UI state
 data/orb_position.json

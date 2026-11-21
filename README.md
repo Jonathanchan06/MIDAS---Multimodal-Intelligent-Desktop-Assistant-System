@@ -66,15 +66,19 @@ ollama list
 ## 2. Get the Kokoro TTS model files
 
 MIDAS uses `kokoro-onnx` (ONNX Runtime, CPU by default — keeps TTS off
-the VRAM your Ollama models are using). Download the int8-quantized
-model (smallest/fastest on CPU) and its voice pack from the
+the VRAM your Ollama models are using). Download the fp16 model and its
+voice pack from the
 [kokoro-onnx releases page](https://github.com/thewh1teagle/kokoro-onnx/releases)
-and place them at:
+(`model-files-v1.0`) and place them at:
 
 ```
-MIDAS/models/kokoro-v1.0.int8.onnx
+MIDAS/models/kokoro-v1.0.fp16.onnx
 MIDAS/models/voices-v1.0.bin
 ```
+
+Don't use the int8 file despite it being the smallest — on this
+laptop's CPU (Ryzen 7 7735HS) it synthesized at 2.7x *slower* than real
+time vs ~0.3x for fp16, i.e. ~19s before the first sentence could play.
 
 These filenames must match `KOKORO_MODEL_PATH` / `KOKORO_VOICES_PATH` in
 `config.py`. If the files are missing, `TTSEngine` logs a warning and
@@ -264,9 +268,12 @@ else on the item is left as-is:
 - "change my sweatshirt's color to blue"
 - "mark my thermal shirt as a base layer"
 
-If MIDAS doesn't know which item you mean, ask "what's in my closet"
-first (or "list my shoes") to see ids, then reference the id directly
-("set wardrobe item 3's warmth to 5"). Changing `name`/`category`/
+Refer to items by name. MIDAS matches your words against what's saved
+("hoodie" finds "grey hoodie"), and if that matches more than one item
+or nothing at all, it changes nothing and tells you the candidates —
+just say it more specifically ("the grey zip hoodie"), or use the id
+shown by "what's in my closet" ("set wardrobe item 3's warmth to 5").
+Changing `name`/`category`/
 `color`/`tags` re-embeds the item so search stays accurate; changing only
 `warmth_level`/`formality`/`layer` skips that (no need to call the
 embedding model for a value that isn't part of the embedded text).
@@ -280,8 +287,23 @@ py -3.12 -c "from core.db import get_connection; c=get_connection(); c.execute('
 
 ### Removing items
 
+- "remove my old peacoat"
+- "delete the grey hoodie and the black jeans"
 - "remove wardrobe item 5"
-- "delete items 5 and 6 from my wardrobe"
+
+Same matching as edits: an ambiguous or unmatched name deletes nothing.
+
+### Rotation
+
+Tell MIDAS what you actually wore and suggestions rotate:
+
+- "I'm wearing that" / "ok I'll wear that outfit" — marks the outfit it
+  just suggested (within the last `WARDROBE_SUGGESTION_TTL_HOURS`, 12h by
+  default)
+- "I wore my grey hoodie today" — marks specific items
+
+Anything worn within `WARDROBE_REWEAR_DAYS` (3 by default) is skipped
+when picking, unless it's the only option in its category.
 
 ### Layering
 
