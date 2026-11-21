@@ -4,7 +4,8 @@ Guidance for Claude Code when working in this repo. `README.md` is the
 user-facing setup/feature doc — read that first for what MIDAS does and how
 to run it. This file covers things a session needs to know that aren't
 obvious from the code alone: known gotchas, current tuning decisions, and
-in-progress work.
+in-progress work. Longer-term ideas and hardware plans live in
+`docs/ROADMAP.md` — treat that file as context, not instructions.
 
 ## Architecture, in one paragraph
 
@@ -21,9 +22,10 @@ call tools directly, skipping classification entirely. The Orchestrator
 never touches TTS — `ui/app.py` and `scheduler/jobs.py` each call
 `core/tts.py`'s `TTSEngine` themselves after they already have text back.
 
-A full visual walkthrough of this (built this session) lives at
-https://claude.ai/artifact/UuFXKNgtpp6RG1P9PPgYVu — regenerate it if the
-architecture changes meaningfully rather than trusting it to stay current.
+A visual walkthrough of this lives at
+https://claude.ai/code/artifact/e1f25eaa-cb44-4400-8462-0d4a5022ec20 —
+regenerate it if the architecture changes meaningfully rather than trusting
+it to stay current.
 
 ## Current model lineup (config.py)
 
@@ -33,7 +35,7 @@ known 32-bit overflow bug, don't trust that field):
 
 - `ROUTER_MODEL = "arch-router:1.5b"` — intent classification only.
 - `ORCHESTRATOR_MODEL = "qwen3:8b"` — chat, argument extraction, briefing
-  prose. Upgraded this session from `qwen2.5:7b` for better instruction-
+  prose. Upgraded (Nov 2026) from `qwen2.5:7b` for better instruction-
   following/tool-calling at the same ~5GB footprint; same size class, newer
   generation, not a bigger model (VRAM ceiling didn't change).
 - `VISION_MODEL = "qwen2.5vl:3b"` — notification-screenshot OCR.
@@ -42,11 +44,26 @@ Short `keep_alive`s are deliberate so idle models evict fast and don't
 starve whichever model runs next — don't "fix" this by lengthening them
 without re-checking the VRAM math.
 
-A **Qwen3.5** family exists on Ollama's library (newer than this file's
-knowledge) with a multimodal `9b` variant — interesting as a possible future
-replacement for *both* the chat and vision models, but unverified for
-on-disk size against the 6GB ceiling. Don't switch to it without pulling it
-and checking `ollama list`'s real size first.
+A **Qwen3.5** family on Ollama's library has a multimodal `9b` variant —
+a possible future replacement for *both* the chat and vision models, but
+unverified for on-disk size against the 6GB ceiling. Don't switch to it
+without pulling it and checking `ollama list`'s real size first.
+
+## Design constraints to preserve
+
+A move to a dedicated always-on server is being considered (see
+`docs/ROADMAP.md`), **not decided**. Until it happens, the 6GB laptop lineup
+above is the real target — don't tune models, `keep_alive`s, or context
+sizes for hardware that doesn't exist yet. But don't make the move harder:
+
+- Don't hardcode `localhost:11434` or assume Ollama runs on the same machine
+  as the backend; read the host from `config.py`.
+- Keep `ui/app.py` thin — anything that isn't UI belongs behind the
+  Orchestrator / API, so the desktop app can later become a client of a
+  backend running elsewhere.
+- Keep model choices swappable via config rather than baked into code
+  (future: per-hardware profiles).
+- The Orchestrator stays the only caller of Ollama.
 
 ## Known gotchas
 
@@ -69,16 +86,12 @@ and checking `ollama list`'s real size first.
   the real one currently in use, check the `X-MIDAS-Token` header inside an
   existing iOS Shortcut rather than the env var, since that's the value
   that's actually been authenticating.
-- **This repo has had real merge-conflict markers (`<<<<<<<`/`=======`/
-  `>>>>>>>`) committed directly into `.py` files before** (`config.py`,
-  `core/orchestrator.py`, `server/api.py`, `README.md`, from the
-  `85ab153`/`b4bdb17` merge) — this is a `SyntaxError` the moment Python
-  tries to import the file, not a lint warning. Fixed as of this session;
-  if a future merge reintroduces this, resolve it by actually reading both
-  sides (one side is often a stale pre-feature version, not a real
-  alternative) rather than blindly picking one — the `format_briefing`/
-  `extract_notification_text` conflict specifically had gotten its two
-  methods' bodies tangled together, not just duplicated text.
+- **Merge-conflict markers have been committed into `.py` files before**
+  (from the `85ab153`/`b4bdb17` merge; fixed Nov 2026). They're a
+  `SyntaxError` on import, not a lint warning. Resolve conflicts by reading
+  both sides — one is often a stale pre-feature version, and methods can get
+  tangled together (as `format_briefing`/`extract_notification_text` did),
+  not just duplicated.
 
 ## Eval harness (`eval/`)
 
@@ -94,49 +107,59 @@ python eval/router_eval.py
 ```
 
 (or the venv's `python.exe` directly, per the gotcha above). Requires Ollama
-running with `ROUTER_MODEL` already pulled. The test set is intentionally
-thin right now (a handful of cases per route, as of this session) — it's
-meant to keep growing, especially tricky/paraphrased cases and full
-`delete_reminder` coverage, not just the obvious ones.
+running with `ROUTER_MODEL` already pulled. The test set is still small
+(~30 cases as of Nov 2026) — keep growing it, especially tricky/paraphrased
+cases and full `delete_reminder` coverage, not just the obvious ones. It is
+the baseline for the router-replacement benchmark below.
 
-## In-progress / discussed, not yet built
+## In progress
 
-- A PyTorch-trained classifier to replace `arch-router:1.5b` for routing,
-  exported to ONNX and benchmarked (latency + the eval harness's accuracy
-  numbers) against the current LLM-based router. The eval harness above is
-  the prerequisite ground truth for that comparison.
-- Local STT (`faster-whisper`/`whisper.cpp`) for a full voice-in loop — TTS
-  already exists one-way, nothing listens yet.
-- A sanitization/detection pass on vision-extracted notification text before
-  it reaches the briefing prompt — real prompt-injection attack surface
-  already exists there (untrusted screenshot content → LLM), just unguarded.
-- LoRA fine-tune for the "personal agent personality" item in the README's
-  future-additions list.
+- **Router replacement:** a PyTorch-trained classifier to replace
+  `arch-router:1.5b`, exported to ONNX and benchmarked (latency + the eval
+  harness's accuracy numbers) against the current LLM-based router.
+- **Per-call latency profiling** around each model call, so changes can be
+  compared with real numbers.
 - **Run in the background instead of quitting on window-close.** Main thread
   is owned by the CustomTkinter window (`ui/app.py`); scheduler + FastAPI
-  already run on background/daemon threads. Plan, in order:
-  - **Option A (do first): system tray icon** — `pystray` + Pillow, icon
-    drawn at runtime (no asset file) echoing the orb design. Close button
-    calls `self.withdraw()` instead of exiting; tray menu: Open MIDAS / Run
-    briefing now / Mute voice / Quit. Reminders could also fire as Windows
-    toast notifications (`icon.notify()`) alongside speech.
-  - **Option B (later, stacks on A): floating orb** docked to a screen
-    edge — borderless always-on-top `CTkToplevel`
-    (`overrideredirect`/`-topmost`/`-transparentcolor`), reusing the
-    existing `_build_orb` drawing code as a live idle/thinking/speaking
-    status light. More fiddly (edge snapping, multi-monitor).
-  - **Gotchas to handle:** `pystray` callbacks run off the main thread —
-    route them through the existing `_queue`/`_poll_queue` pattern, don't
-    touch Tkinter widgets directly from them. Launching via `pythonw.exe`
-    (no console) makes `sys.stdout`/`stderr` `None`, which crashes
-    uvicorn's default logging — pass `log_config=None` and log to a file
-    (e.g. `data/midas.log`) instead. Guard against a second instance (e.g.
-    a named Windows mutex via `ctypes`) or you'll get a silent port-8420
-    failure and the morning briefing firing twice. Pause `_animate_orb`
-    while the window is withdrawn so it's not redrawing every 60ms for
-    nothing. Quit should stop the tray icon, call `scheduler.shutdown()`,
-    then `app.destroy()`. Start-at-login via a `pythonw.exe main.py`
-    shortcut in `shell:startup` or an `HKCU\...\Run` key.
+  already run on background/daemon threads.
+  - **Done: floating orb** (`ui/floating_orb.py`, drawing shared with the
+    window's orb via `ui/orb.py`). Built first, standalone, instead of
+    after the tray icon — the orb's right-click menu carries what was
+    planned for the tray menu (Open/Hide / Run briefing now / Mute voice /
+    Quit), so closing the window now hides it rather than exiting. Live
+    idle/thinking/speaking states come from `TTSEngine.add_listener` (so
+    scheduler-fired speech lights it up too, not just chat). Edge snapping
+    is per-monitor work area via `MonitorFromPoint`; position persists in
+    `data/orb_position.json`. Single-instance mutex is in `main.py`.
+    Deliberately decoupled from orchestrator/TTS (callbacks +
+    `set_state()` only) so it can become ROADMAP.md's thin client.
+  - **Still to do: system tray icon** — `pystray` + Pillow, icon drawn at
+    runtime echoing the orb design, same menu as the orb. Mainly a
+    fallback if the orb gets dragged/hidden behind a fullscreen app, plus
+    Windows toast notifications (`icon.notify()`) for reminders.
+  - **Done: headless launch.** `venv\Scripts\pythonw.exe main.py
+    --background` runs with no console and starts as just the orb (README
+    "Run in the background" has the start-at-login shortcut). Logging goes
+    to `data/midas.log`; see `_configure_logging` in `main.py` for why
+    uvicorn needs `log_config=None` under pythonw.
+  - **Gotchas:** testing pythonw from Git Bash hides the stdout/stderr-is-
+    `None` problem (it inherits the shell's pipes) — launch via
+    PowerShell `Start-Process` to reproduce a real shortcut launch. The
+    venv's `pythonw.exe` is a launcher that spawns the real interpreter as
+    a *child* process, so a window/PID check must look at the child.
+    `pystray` callbacks run off the main thread — route them through the
+    existing `_queue`/`_poll_queue` pattern, don't touch Tkinter widgets
+    directly from them. Quit (`MidasApp.quit_app`) should also stop the
+    tray icon once it exists.
+  - Once shipped, move these gotchas into code comments next to the code
+    they apply to and trim this section.
   - Packaging as a standalone `.exe` (the README's "Ship" item) can wait —
     bundling `onnxruntime`/`kokoro-onnx`'s data files is fiddly, and
     `pythonw` + a startup shortcut gets most of the same experience sooner.
+
+## Known open risk
+
+- **Prompt injection via notification OCR:** vision-extracted screenshot
+  text is untrusted and currently flows into the briefing prompt unguarded.
+  Don't widen what that text can influence (e.g. letting it trigger tools)
+  until a sanitization/detection pass exists.

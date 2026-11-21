@@ -8,8 +8,14 @@ fast" hardware constraint for no real benefit on a desktop app.
 Generation runs on a daemon thread; tokens flow back through a
 queue.Queue drained by after()-polling, so the LLM call never touches
 Tkinter widgets off the main thread and the window never freezes.
+
+Closing the window hides it instead of quitting — the floating orb
+(ui/floating_orb.py) stays on screen as the status light and the way back
+in, and the scheduler + API keep running. Quit lives in the orb's
+right-click menu.
 """
 
+import logging
 import queue
 import threading
 import tkinter as tk
@@ -19,18 +25,20 @@ from datetime import datetime
 import customtkinter as ctk
 
 import config
+from tools.briefing import run_morning_briefing
+from ui.floating_orb import FloatingOrb
+from ui.orb import IDLE, SPEAKING, THINKING, OrbDrawing
+from ui.theme import (
+    ACCENT,
+    BG,
+    BORDER,
+    TEXT_FAINT,
+    TEXT_MUTED,
+    TEXT_PRIMARY,
+    TEXT_USER,
+)
 
-BG = "#ffffff"
-TEXT_PRIMARY = "#14181a"
-TEXT_MUTED = "#a7b0b2"
-TEXT_FAINT = "#c1c8ca"
-TEXT_USER = "#6b7578"
-ACCENT = "#0ba5c2"
-BORDER = "#e7ebec"
-BORDER_STRONG = "#e5e9ea"
-RING_DASHED = "#dbe2e3"
-RING_INNER = "#cfe9ee"
-CORE_FILL = "#f3f8f9"
+logger = logging.getLogger(__name__)
 
 HISTORY_LIMIT = 12  # keep prompts small for the 2048-token chat context budget
 
@@ -53,7 +61,7 @@ class MidasApp(ctk.CTk):
         self._queue: "queue.Queue" = queue.Queue()
         self._streaming_label = None
         self._streaming_text = ""
-        self._dash_offset = 0
+        self._speaking = False
 
         ctk.set_appearance_mode("light")
 
@@ -75,7 +83,24 @@ class MidasApp(ctk.CTk):
         self._build_transcript()
         self._build_input_row()
 
-        self._animate_orb()
+        self.mute_var = tk.BooleanVar(value=False)
+        self.mute_var.trace_add(
+            "write", lambda *_: setattr(self.tts_engine, "muted", self.mute_var.get())
+        )
+        self.floating_orb = FloatingOrb(
+            self,
+            on_toggle_window=self.toggle_window,
+            on_run_briefing=self.run_briefing_now,
+            on_quit=self.quit_app,
+            is_window_visible=self.is_window_visible,
+            mute_var=self.mute_var,
+        )
+        self.protocol("WM_DELETE_WINDOW", self.hide_window)
+        # Fires on the TTS thread — hand off through the queue, never touch
+        # widgets from there.
+        self.tts_engine.add_listener(lambda speaking: self._queue.put(("speaking", speaking)))
+
+        self._animate_orbs()
         self._poll_queue()
 
     # -- layout -----------------------------------------------------------
@@ -107,21 +132,9 @@ class MidasApp(ctk.CTk):
             wrap, width=168, height=168, bg=BG, highlightthickness=0, cursor="hand2"
         )
         self.orb_canvas.pack()
-        self.orb_canvas.create_oval(1, 1, 167, 167, outline=BORDER_STRONG, width=1)
-        self.middle_ring_id = self.orb_canvas.create_oval(
-            10, 10, 158, 158, outline=RING_DASHED, width=1, dash=(1, 4)
-        )
-        self.orb_canvas.create_oval(21, 21, 147, 147, outline=RING_INNER, width=1)
-
-        self._core_center = (84, 84)
-        self._core_radius = 28
-        cx, cy = self._core_center
-        r = self._core_radius
-        self.core_id = self.orb_canvas.create_oval(
-            cx - r, cy - r, cx + r, cy + r, fill=CORE_FILL, outline=""
-        )
-        self.orb_canvas.bind("<Enter>", self._on_orb_enter)
-        self.orb_canvas.bind("<Leave>", self._on_orb_leave)
+        self.orb = OrbDrawing(self.orb_canvas, 168)
+        self.orb_canvas.bind("<Enter>", lambda _e: self.orb.set_hover(True))
+        self.orb_canvas.bind("<Leave>", lambda _e: self.orb.set_hover(False))
 
         ctk.CTkLabel(wrap, text="MIDAS", font=self.font_title, text_color=TEXT_PRIMARY).pack(
             pady=(18, 4)
@@ -188,27 +201,84 @@ class MidasApp(ctk.CTk):
             text_color=TEXT_FAINT,
         ).pack(pady=(10, 0))
 
-    # -- orb interactions ---------------------------------------------------
+    # -- orbs / activity state -------------------------------------------------
 
-    def _on_orb_enter(self, _event=None):
-        cx, cy = self._core_center
-        r = self._core_radius + 3
-        self.orb_canvas.coords(self.core_id, cx - r, cy - r, cx + r, cy + r)
-        self.orb_canvas.itemconfigure(self.core_id, outline=ACCENT, width=2)
+    def _animate_orbs(self):
+        # The window's own orb is skipped while hidden — no point redrawing
+        # an invisible canvas every 60ms. The floating orb always animates.
+        if self.is_window_visible():
+            self.orb.tick()
+        self.floating_orb.tick()
+        self.after(60, self._animate_orbs)
 
-    def _on_orb_leave(self, _event=None):
-        cx, cy = self._core_center
-        r = self._core_radius
-        self.orb_canvas.coords(self.core_id, cx - r, cy - r, cx + r, cy + r)
-        self.orb_canvas.itemconfigure(self.core_id, outline="", width=1)
+    def _refresh_activity(self):
+        if self._speaking:
+            state, label = SPEAKING, "SPEAKING…"
+        elif self.is_streaming:
+            state, label = THINKING, "THINKING…"
+        else:
+            state, label = IDLE, "READY"
+        self.orb.set_state(state)
+        self.floating_orb.set_state(state)
+        self.status_label.configure(text=label)
 
-    def _animate_orb(self):
-        self._dash_offset = (self._dash_offset + 1) % 1000
+    # -- window visibility --------------------------------------------------------
+
+    def is_window_visible(self) -> bool:
+        return self.state() not in ("withdrawn", "iconic")
+
+    def hide_window(self):
+        self.withdraw()
+        self.floating_orb.raise_to_top()
+
+    def show_window(self):
+        self.deiconify()
+        self.lift()
+        # Windows won't always let a background process steal foreground;
+        # a brief topmost toggle reliably brings the window forward.
+        self.attributes("-topmost", True)
+        self.after_idle(self.attributes, "-topmost", False)
+        self.focus_force()
+        self.entry.focus_set()
+        self.floating_orb.raise_to_top()
+
+    def toggle_window(self):
+        if self.is_window_visible():
+            self.hide_window()
+        else:
+            self.show_window()
+
+    def quit_app(self):
+        # mainloop() returns after destroy(); main.py's finally block then
+        # shuts the scheduler down. API/worker threads are daemons.
+        self.tts_engine.stop()
+        self.floating_orb.destroy()
+        self.destroy()
+
+    # -- briefing on demand ---------------------------------------------------------
+
+    def run_briefing_now(self):
+        """Orb-menu "Run briefing now". Goes into the transcript (and
+        history) as if the user had asked for it, so follow-ups like
+        "tell me more about that headline" have context. Doesn't pop the
+        window open — it's spoken either way."""
+        if self.is_streaming:
+            return
+        request = "Give me my morning briefing."
+        timestamp = datetime.now().strftime("%H:%M")
+        self._add_message("user", request, timestamp)
+        self._start_assistant_turn(timestamp)
+        threading.Thread(target=self._briefing_worker, args=(request,), daemon=True).start()
+
+    def _briefing_worker(self, request: str):
         try:
-            self.orb_canvas.itemconfigure(self.middle_ring_id, dashoffset=self._dash_offset)
-        except Exception:
-            pass
-        self.after(60, self._animate_orb)
+            prose = self.orchestrator.format_briefing(run_morning_briefing())
+        except Exception as exc:
+            logger.exception("on-demand briefing failed")
+            self._queue.put(("done", (request, f"[error: {exc}]")))
+            return
+        self._queue.put(("done", (request, prose)))
+        self.tts_engine.speak(prose)
 
     # -- transcript -----------------------------------------------------------
 
@@ -259,17 +329,20 @@ class MidasApp(ctk.CTk):
 
         timestamp = datetime.now().strftime("%H:%M")
         self._add_message("user", text, timestamp)
-        self._streaming_label = self._add_message("assistant", "", timestamp)
-        self._streaming_text = ""
-        self.is_streaming = True
-        self.status_label.configure(text="THINKING…")
-        self.send_button.configure(text="···", text_color=TEXT_FAINT, state="disabled")
+        self._start_assistant_turn(timestamp)
 
         history_snapshot = list(self.history)
         threading.Thread(
             target=self._worker, args=(text, history_snapshot), daemon=True
         ).start()
         return "break"
+
+    def _start_assistant_turn(self, timestamp: str):
+        self._streaming_label = self._add_message("assistant", "", timestamp)
+        self._streaming_text = ""
+        self.is_streaming = True
+        self.send_button.configure(text="···", text_color=TEXT_FAINT, state="disabled")
+        self._refresh_activity()
 
     def _worker(self, text: str, history_snapshot: list[dict]):
         def on_token(token: str):
@@ -303,6 +376,9 @@ class MidasApp(ctk.CTk):
                     self._scroll_to_bottom()
                 elif kind == "route":
                     self.model_label.configure(text=payload)
+                elif kind == "speaking":
+                    self._speaking = payload
+                    self._refresh_activity()
                 elif kind == "done":
                     user_text, full_text = payload
                     if self._streaming_label is not None:
@@ -312,8 +388,8 @@ class MidasApp(ctk.CTk):
                     self.history = self.history[-HISTORY_LIMIT:]
                     self.is_streaming = False
                     self._streaming_label = None
-                    self.status_label.configure(text="READY")
                     self.send_button.configure(text="→", text_color=ACCENT, state="normal")
+                    self._refresh_activity()
         except queue.Empty:
             pass
         self.after(30, self._poll_queue)

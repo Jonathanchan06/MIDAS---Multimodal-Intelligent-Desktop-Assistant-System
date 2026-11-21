@@ -119,6 +119,35 @@ and starts the APScheduler jobs
 running (`ollama serve`, or the Ollama desktop app) for chat, routing,
 and the briefing's prose formatting to work.
 
+### Run in the background
+
+Closing the window doesn't quit MIDAS — it hides to a small floating orb
+docked to the screen edge (click it to reopen, right-click for Run
+briefing now / Mute voice / Quit; drag to move). To run with no console
+window at all, launch with `pythonw.exe` from the project folder:
+
+```
+venv\Scripts\pythonw.exe main.py --background
+```
+
+`--background` starts as just the orb, without opening the window. Logs
+go to `data/midas.log` since there's no console. Only one copy runs at a
+time — launching again just shows a "MIDAS is already running" message.
+
+To start MIDAS automatically when you sign in, create a startup shortcut
+(run once in PowerShell from the project folder):
+
+```
+$s = (New-Object -ComObject WScript.Shell).CreateShortcut("$([Environment]::GetFolderPath('Startup'))\MIDAS.lnk")
+$s.TargetPath = "$PWD\venv\Scripts\pythonw.exe"
+$s.Arguments = "main.py --background"
+$s.WorkingDirectory = "$PWD"
+$s.Save()
+```
+
+Delete `MIDAS.lnk` from `shell:startup` (Win+R → `shell:startup`) to undo.
+Ollama has to be running too — its desktop app starts at login by default.
+
 ## Phone-to-PC API
 
 All routes require an `X-MIDAS-Token` header matching `MIDAS_API_TOKEN`.

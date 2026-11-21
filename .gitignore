@@ -23,3 +23,8 @@ Thumbs.db
 
 # Personal data
 data/wardrobe_seed.json
+
+# Per-machine UI state
+data/orb_position.json
+data/*.log
+data/*.log.*
