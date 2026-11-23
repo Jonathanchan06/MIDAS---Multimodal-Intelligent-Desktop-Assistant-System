@@ -1,6 +1,8 @@
 """Floating desktop orb: a small borderless, always-on-top window docked to
 a screen edge that stays up while the main window is hidden. It's the
-live status light (idle / thinking / speaking) and the way back into MIDAS.
+live status light (idle / thinking / speaking, voice-reactive) and the way
+back into MIDAS. It draws a round cluster of the main window's dot grid on
+a black disc.
 
 - Left-click toggles the main window.
 - Drag to move; on release it snaps to the nearest left/right edge of
@@ -9,9 +11,16 @@ live status light (idle / thinking / speaking) and the way back into MIDAS.
 - Right-click: Open/Hide MIDAS, Run briefing now, Mute voice, Quit.
 
 Deliberately knows nothing about the orchestrator, TTS, or scheduler — it
-only gets callbacks and set_state(). Per ROADMAP.md's client-server split,
-this is meant to become the laptop's thin client, driven by a remote
-backend instead of in-process calls, without this file changing.
+only gets callbacks, set_state(), and the UI's VoiceLevels. Per
+ROADMAP.md's client-server split, this is meant to become the laptop's
+thin client, driven by a remote backend instead of in-process calls.
+
+Drawing: on Windows the window is a per-pixel-alpha layered window
+(UpdateLayeredWindow), so the disc has smooth edges and a soft shadow over
+any wallpaper. Tk's own painting of the window is ignored in that mode;
+the canvas only exists to receive mouse events. If that setup fails (or
+off Windows), it falls back to Tk's -transparentcolor colour key, whose
+key is one shade off the disc's rim so the hard edge doesn't fringe.
 
 Uses a plain tk.Toplevel rather than CTkToplevel: CTkToplevel's Windows
 title-bar/icon tweaks fire on a delay after creation and are pointless
@@ -27,10 +36,12 @@ from ctypes import wintypes
 from typing import Callable
 
 import customtkinter as ctk
+import numpy as np
+from PIL import Image, ImageFilter, ImageTk
 
 import config
-from ui.orb import OrbDrawing
-from ui.theme import BG
+from ui.dot_grid import IDLE, DotField, DotRenderer, VoiceLevels
+from ui.theme import LINE
 
 logger = logging.getLogger(__name__)
 
@@ -41,9 +52,10 @@ SNAP_STEPS = 8
 SNAP_STEP_MS = 15
 POSITION_FILE = config.DATA_DIR / "orb_position.json"
 
-# Pixels this exact color are punched out via -transparentcolor, so only
-# the circle shows. Must never appear in the orb drawing itself.
-_TRANSPARENT_KEY = "#ff00fe"
+_RIM_RGB = np.array([int(LINE[i : i + 2], 16) for i in (1, 3, 5)], np.float32)
+# Colour-key fallback only: pixels exactly this colour are punched out. One
+# shade off the rim, so anti-aliased edge pixels blend toward the rim.
+_TRANSPARENT_KEY = "#24282c"
 
 _MONITOR_DEFAULTTONEAREST = 2
 
@@ -84,11 +96,159 @@ def _monitor_work_area(x: int, y: int) -> tuple[int, int, int, int] | None:
         return None
 
 
+# -- per-pixel alpha (Windows layered window) ---------------------------------
+
+_GWL_EXSTYLE = -20
+_WS_EX_LAYERED = 0x00080000
+_ULW_ALPHA = 0x2
+_AC_SRC_OVER, _AC_SRC_ALPHA = 0x0, 0x1
+
+
+class _BLENDFUNCTION(ctypes.Structure):
+    _fields_ = [
+        ("BlendOp", ctypes.c_ubyte),
+        ("BlendFlags", ctypes.c_ubyte),
+        ("SourceConstantAlpha", ctypes.c_ubyte),
+        ("AlphaFormat", ctypes.c_ubyte),
+    ]
+
+
+class _BITMAPINFOHEADER(ctypes.Structure):
+    _fields_ = [
+        ("biSize", wintypes.DWORD),
+        ("biWidth", wintypes.LONG),
+        ("biHeight", wintypes.LONG),
+        ("biPlanes", wintypes.WORD),
+        ("biBitCount", wintypes.WORD),
+        ("biCompression", wintypes.DWORD),
+        ("biSizeImage", wintypes.DWORD),
+        ("biXPelsPerMeter", wintypes.LONG),
+        ("biYPelsPerMeter", wintypes.LONG),
+        ("biClrUsed", wintypes.DWORD),
+        ("biClrImportant", wintypes.DWORD),
+    ]
+
+
+class _LayeredSurface:
+    """Owns a 32-bit DIB and pushes it to a window with UpdateLayeredWindow."""
+
+    def __init__(self, hwnd: int, size: int):
+        u32 = ctypes.WinDLL("user32", use_last_error=True)
+        g32 = ctypes.WinDLL("gdi32", use_last_error=True)
+        u32.GetWindowLongW.argtypes = [wintypes.HWND, ctypes.c_int]
+        u32.GetWindowLongW.restype = wintypes.LONG
+        u32.SetWindowLongW.argtypes = [wintypes.HWND, ctypes.c_int, wintypes.LONG]
+        u32.SetWindowLongW.restype = wintypes.LONG
+        u32.GetDC.argtypes = [wintypes.HWND]
+        u32.GetDC.restype = wintypes.HDC
+        u32.ReleaseDC.argtypes = [wintypes.HWND, wintypes.HDC]
+        u32.UpdateLayeredWindow.argtypes = [
+            wintypes.HWND, wintypes.HDC, ctypes.POINTER(wintypes.POINT),
+            ctypes.POINTER(wintypes.SIZE), wintypes.HDC, ctypes.POINTER(wintypes.POINT),
+            wintypes.DWORD, ctypes.POINTER(_BLENDFUNCTION), wintypes.DWORD,
+        ]
+        u32.UpdateLayeredWindow.restype = wintypes.BOOL
+        g32.CreateCompatibleDC.argtypes = [wintypes.HDC]
+        g32.CreateCompatibleDC.restype = wintypes.HDC
+        g32.CreateDIBSection.argtypes = [
+            wintypes.HDC, ctypes.POINTER(_BITMAPINFOHEADER), wintypes.UINT,
+            ctypes.POINTER(ctypes.c_void_p), wintypes.HANDLE, wintypes.DWORD,
+        ]
+        g32.CreateDIBSection.restype = wintypes.HBITMAP
+        g32.SelectObject.argtypes = [wintypes.HDC, wintypes.HGDIOBJ]
+        g32.SelectObject.restype = wintypes.HGDIOBJ
+        g32.DeleteObject.argtypes = [wintypes.HGDIOBJ]
+        g32.DeleteDC.argtypes = [wintypes.HDC]
+        self._u32, self._g32 = u32, g32
+        self._hwnd, self._size = hwnd, size
+
+        style = u32.GetWindowLongW(hwnd, _GWL_EXSTYLE)
+        u32.SetWindowLongW(hwnd, _GWL_EXSTYLE, style | _WS_EX_LAYERED)
+
+        screen = u32.GetDC(None)
+        self._dc = g32.CreateCompatibleDC(screen)
+        u32.ReleaseDC(None, screen)
+        header = _BITMAPINFOHEADER(
+            biSize=ctypes.sizeof(_BITMAPINFOHEADER), biWidth=size, biHeight=-size,  # top-down
+            biPlanes=1, biBitCount=32, biCompression=0,
+        )
+        self._bits = ctypes.c_void_p()
+        self._bmp = g32.CreateDIBSection(self._dc, ctypes.byref(header), 0, ctypes.byref(self._bits), None, 0)
+        if not self._bmp or not self._bits:
+            raise OSError("CreateDIBSection failed")
+        self._old = g32.SelectObject(self._dc, self._bmp)
+        self._blend = _BLENDFUNCTION(_AC_SRC_OVER, 0, 255, _AC_SRC_ALPHA)
+        self._sz = wintypes.SIZE(size, size)
+        self._src = wintypes.POINT(0, 0)
+
+    def paint(self, bgra_premultiplied: np.ndarray) -> None:
+        data = np.ascontiguousarray(bgra_premultiplied, dtype=np.uint8)
+        ctypes.memmove(self._bits, data.ctypes.data, data.nbytes)
+        ok = self._u32.UpdateLayeredWindow(
+            self._hwnd, None, None, ctypes.byref(self._sz), self._dc,
+            ctypes.byref(self._src), 0, ctypes.byref(self._blend), _ULW_ALPHA,
+        )
+        if not ok:
+            raise OSError(f"UpdateLayeredWindow failed ({ctypes.get_last_error()})")
+
+    def close(self) -> None:
+        try:
+            self._g32.SelectObject(self._dc, self._old)
+            self._g32.DeleteObject(self._bmp)
+            self._g32.DeleteDC(self._dc)
+        except Exception:
+            pass
+
+
+# -- the orb's artwork ----------------------------------------------------------
+
+
+class _OrbArt:
+    """Static disc + shadow, with a circular DotField drawn on top each frame."""
+
+    def __init__(self, size: int):
+        s = size
+        pad = max(3, round(s * 0.08))
+        radius = s / 2 - pad
+        yy, xx = np.mgrid[0:s, 0:s] + 0.5
+        d = np.hypot(xx - s / 2, yy - s / 2)
+        disc = np.clip(radius - d + 0.5, 0, 1).astype(np.float32)
+        rim = (np.clip(1 - np.abs(d - (radius - 0.75)), 0, 1) * disc).astype(np.float32)
+
+        # soft drop shadow: the disc, nudged down, blurred
+        offset = max(1, round(s * 0.03))
+        shadow_src = np.zeros((s, s), np.uint8)
+        shadow_src[offset:, :] = (disc[: s - offset, :] * 255).astype(np.uint8)
+        blurred = Image.fromarray(shadow_src, "L").filter(ImageFilter.GaussianBlur(max(1.5, s * 0.05)))
+        shadow = np.asarray(blurred, np.float32) / 255 * 0.55
+
+        self.size = s
+        self.disc = disc
+        self.alpha = disc + shadow * (1 - disc)  # shadow is black: adds alpha, no colour
+        self.base_rgb = rim[..., None] * _RIM_RGB  # premultiplied (disc interior is black)
+
+        side = int(2 * (radius - 1.5))
+        self.offset = (s - side) // 2
+        self.field = DotField(side, side, max(5, round(s / 9)), circle=True)
+        self.field.pointer_sigma = side * 0.6
+        self.field.pointer_gain = 0.45
+        self.renderer = DotRenderer(self.field)
+
+    def compose(self) -> tuple[np.ndarray, np.ndarray]:
+        """(premultiplied RGB float, alpha 0..1)."""
+        rgb = self.base_rgb.copy()
+        o, side = self.offset, self.field.width
+        rgb[o : o + side, o : o + side] += self.renderer.buffer
+        np.clip(rgb, 0, 255, out=rgb)
+        return rgb, self.alpha
+
+
 class FloatingOrb(tk.Toplevel):
     def __init__(
         self,
         master,
         *,
+        voice: VoiceLevels,
         on_toggle_window: Callable[[], None],
         on_run_briefing: Callable[[], None],
         on_quit: Callable[[], None],
@@ -99,15 +259,10 @@ class FloatingOrb(tk.Toplevel):
         self.withdraw()  # stay hidden until positioned, avoids a flash at 0,0
         self._on_toggle_window = on_toggle_window
         self._is_window_visible = is_window_visible
+        self._voice = voice
 
         self.overrideredirect(True)
         self.attributes("-topmost", True)
-        key = _TRANSPARENT_KEY
-        try:
-            self.attributes("-transparentcolor", key)
-        except tk.TclError:
-            key = BG  # platform without color-key transparency: show a white square
-        self.configure(bg=key)
 
         try:
             scale = ctk.ScalingTracker.get_window_scaling(master)
@@ -115,18 +270,26 @@ class FloatingOrb(tk.Toplevel):
             scale = 1.0
         self._size = round(ORB_SIZE_DIP * scale)
         self._margin = round(EDGE_MARGIN_DIP * scale)
+        self._art = _OrbArt(self._size)
+        self._art.field.set_state(IDLE)
+        self._needs_frame = True
 
+        self.configure(bg="#000000")
         self.canvas = tk.Canvas(
             self,
             width=self._size,
             height=self._size,
-            bg=key,
+            bg="#000000",
             highlightthickness=0,
             bd=0,
             cursor="hand2",
         )
         self.canvas.pack()
-        self.drawing = OrbDrawing(self.canvas, self._size, disc_fill=BG)
+        self.geometry(f"{self._size}x{self._size}")
+
+        self._surface: _LayeredSurface | None = None
+        self._photo: ImageTk.PhotoImage | None = None
+        self._setup_surface()
 
         self.menu = tk.Menu(self, tearoff=0)
         self.menu.add_command(label="Open MIDAS", command=on_toggle_window)
@@ -148,32 +311,97 @@ class FloatingOrb(tk.Toplevel):
         self.canvas.bind("<B1-Motion>", self._on_motion)
         self.canvas.bind("<ButtonRelease-1>", self._on_release)
         self.canvas.bind("<Button-3>", self._on_right_click)
-        self.canvas.bind("<Enter>", lambda _e: self.drawing.set_hover(True))
-        self.canvas.bind("<Leave>", lambda _e: self.drawing.set_hover(False))
+        self.canvas.bind("<Enter>", lambda _e: self.set_hover(True))
+        self.canvas.bind("<Leave>", lambda _e: self.set_hover(False))
 
         x, y = self._load_position()
         x, y = self._snapped(x, y)
-        self.geometry(f"{self._size}x{self._size}")
         self._move_to(x, y)
+        self.tick(0.0)  # first frame before the window appears
         self.deiconify()
 
     # -- public ---------------------------------------------------------------
 
     def set_state(self, state: str) -> None:
-        self.drawing.set_state(state)
+        self._art.field.set_state(state)
 
-    def tick(self) -> None:
-        self.drawing.tick()
+    def set_hover(self, hover: bool) -> None:
+        c = self._art.field.width / 2
+        self._art.field.set_pointer(c if hover else None, c)
 
-    def _move_to(self, x: int, y: int) -> None:
-        self._pos = (x, y)
-        self.geometry(f"+{x}+{y}")
+    def set_reduced_motion(self, reduced: bool) -> None:
+        self._art.field.reduced_motion = reduced
+
+    def busy(self) -> bool:
+        return self._needs_frame or self._art.field.busy(self._voice)
+
+    def tick(self, dt: float) -> None:
+        if not self.busy():
+            return
+        art = self._art
+        changed = art.renderer.render(*art.field.step(dt, self._voice))
+        if changed or self._needs_frame:
+            self._paint()
+        self._needs_frame = False
 
     def raise_to_top(self) -> None:
         """Windows can quietly drop an overrideredirect window's topmost
         z-order when another window activates; re-assert it."""
         self.attributes("-topmost", True)
         self.lift()
+
+    def destroy(self) -> None:
+        if self._surface is not None:
+            self._surface.close()
+            self._surface = None
+        super().destroy()
+
+    # -- drawing ----------------------------------------------------------------
+
+    def _setup_surface(self) -> None:
+        if sys.platform == "win32":
+            try:
+                self.update_idletasks()
+                hwnd = ctypes.windll.user32.GetParent(self.winfo_id()) or self.winfo_id()
+                self._surface = _LayeredSurface(hwnd, self._size)
+                return
+            except Exception:
+                logger.exception("layered orb window unavailable; using colour-key transparency")
+                self._surface = None
+        try:
+            self.attributes("-transparentcolor", _TRANSPARENT_KEY)
+            self.configure(bg=_TRANSPARENT_KEY)
+            self.canvas.configure(bg=_TRANSPARENT_KEY)
+        except tk.TclError:
+            pass  # no colour keying: the disc shows on a dark square
+        self._photo = ImageTk.PhotoImage("RGB", (self._size, self._size))
+        self.canvas.create_image(0, 0, anchor="nw", image=self._photo)
+
+    def _paint(self) -> None:
+        rgb, alpha = self._art.compose()
+        if self._surface is not None:
+            bgra = np.empty((self._size, self._size, 4), np.uint8)
+            bgra[..., 0] = rgb[..., 2]
+            bgra[..., 1] = rgb[..., 1]
+            bgra[..., 2] = rgb[..., 0]
+            bgra[..., 3] = np.rint(alpha * 255)
+            try:
+                self._surface.paint(bgra)
+                return
+            except OSError:
+                logger.exception("layered paint failed; switching to colour-key transparency")
+                self._surface.close()
+                self._surface = None
+                self._setup_surface()
+        key = np.array([int(_TRANSPARENT_KEY[i : i + 2], 16) for i in (1, 3, 5)], np.float32)
+        opaque = (self._art.disc >= 0.5)[..., None]
+        disc = np.maximum(self._art.disc, 1e-3)[..., None]
+        out = np.where(opaque, rgb / disc, key)  # un-premultiply inside the disc
+        self._photo.paste(Image.fromarray(np.clip(out, 0, 255).astype(np.uint8), "RGB"))
+
+    def _move_to(self, x: int, y: int) -> None:
+        self._pos = (x, y)
+        self.geometry(f"+{x}+{y}")
 
     # -- dragging / clicking ---------------------------------------------------
 

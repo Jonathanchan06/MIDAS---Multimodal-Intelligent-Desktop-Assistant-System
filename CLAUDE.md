@@ -23,7 +23,13 @@ never touches TTS. `ui/app.py` passes an `on_speech` callback into
 `stream_response` and feeds it to a `TTSEngine` utterance, so speech starts
 on the first sentence while the reply is still generating (tools can give
 a shorter `"spoken"` text than what's shown, e.g. list summaries). A new
-message calls `TTSEngine.stop()` first. `scheduler/jobs.py` uses the
+message calls `TTSEngine.stop()` first. `TTSEngine.add_level_listener`
+publishes timed per-25ms voice levels (loudness + 8 bands) from the
+playback thread; they drive the UI's voice-reactive dot grid
+(`ui/dot_grid.py`, also used by the floating orb). The grid fills the
+whole window; the conversation is drawn on its canvas (`ui/chat_view.py`)
+with the grid blurred behind it (`ui/frost.py`), and frames render on a
+background thread. `scheduler/jobs.py` uses the
 blocking one-shot `speak()`.
 
 A visual walkthrough of this lives at

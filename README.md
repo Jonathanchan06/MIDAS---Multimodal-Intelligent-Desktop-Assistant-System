@@ -1,6 +1,6 @@
 # MIDAS
 
-A local-first AI agent: CustomTkinter desktop UI, raw `ollama` SDK
+A local-first AI agent: a desktop UI with a voice-reactive dot grid, raw `ollama` SDK
 orchestration (no LangChain), a modular `tools/` capability layer wired
 through a single `TOOL_REGISTRY` in `main.py`, SQLite reminders, an
 APScheduler morning briefing spoken via local TTS, and a small FastAPI
@@ -9,16 +9,22 @@ surface for phone-to-PC control.
 ## Prerequisites
 
 - **Python 3.12+** (not 3.9 — `onnxruntime`, a `kokoro-onnx` dependency,
-  dropped Python 3.9 wheels, and 3.9 itself is past end-of-life). If
-  multiple Pythons are installed, use the `py -3.12` launcher explicitly
-  for every command below.
+  dropped Python 3.9 wheels, and 3.9 itself is past end-of-life). 3.13
+  works too. All commands below use the project's virtual environment,
+  `venv\Scripts\python.exe`, created in step 3. Using it directly
+  avoids picking up the wrong Python when several are installed. (Windows'
+  `py` launcher doesn't always have 3.12 registered; check with `py -0`.)
 - **Ollama** installed and running.
 
 ## 1. Install Ollama models
 
 ```
-ollama pull qwen2.5:7b
+ollama pull qwen3:8b
 ```
+
+(`qwen3:8b` is the chat model, `ORCHESTRATOR_MODEL` in `config.py`. The
+previous chat model, `qwen2.5:7b`, still works if you set it there instead:
+it's faster but follows instructions less well.)
 
 `arch-router:1.5b` isn't in Ollama's standard library — pull it from
 Hugging Face instead:
@@ -86,9 +92,16 @@ speech becomes a no-op — the rest of the app still runs.
 
 ## 3. Install Python dependencies
 
+From the project folder, create the virtual environment once (any
+Python 3.12+), then install into it:
+
 ```
-py -3.12 -m pip install -r requirements.txt
+py -3.12 -m venv venv
+venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
+
+If you already have a `venv`, just run the second line. It also picks up
+anything new in `requirements.txt`, e.g. Pillow, which the UI now needs.
 
 ## 4. Configure
 
@@ -112,23 +125,50 @@ setx MIDAS_API_TOKEN your-long-random-token
 
 ## 5. Run
 
+Make sure Ollama is running (`ollama serve`, or the Ollama desktop app),
+then from the project folder:
+
 ```
-py -3.12 main.py
+venv\Scripts\python.exe main.py
 ```
 
 This launches the desktop UI (main thread), starts the FastAPI server on
 `0.0.0.0:8420` (background thread — reachable over Tailscale, see below),
 and starts the APScheduler jobs
-(morning briefing + reminder-due polling). Ollama must already be
-running (`ollama serve`, or the Ollama desktop app) for chat, routing,
-and the briefing's prose formatting to work.
+(morning briefing + reminder-due polling). Without Ollama the window
+still opens, but chat, routing, and the briefing's prose formatting
+won't work.
+
+### The window
+
+The window is black, with a dot grid filling it that shows what MIDAS is
+doing:
+- **Ready:** dim and still.
+- **Thinking:** a band of light sweeps across.
+- **Speaking:** it reacts to MIDAS's voice. Low pitches glow warm in the
+  middle, high pitches show cool at the edges.
+
+The grid also brightens under your mouse, and a click sends a ripple.
+Behind the conversation and the message box it blurs so the text stays
+readable.
+
+- **Send:** Enter sends; Shift+Enter starts a new line.
+- **Copy a reply:** right-click it and choose **Copy message**.
+- **Reduced motion:** if Windows' **Animation effects** setting is off
+  (Settings → Accessibility → Visual effects), the sweep, shimmer, and
+  ripples turn off. The grid still reacts to the voice.
 
 ### Run in the background
 
-Closing the window doesn't quit MIDAS — it hides to a small floating orb
-docked to the screen edge (click it to reopen, right-click for Run
-briefing now / Mute voice / Quit; drag to move). To run with no console
-window at all, launch with `pythonw.exe` from the project folder:
+Closing the window doesn't quit MIDAS. It hides to a small floating orb
+docked to the screen edge: a round cluster of the same dots, which
+reacts to MIDAS's voice too.
+- **Click:** reopen the window.
+- **Right-click:** Run briefing now / Mute voice / Quit.
+- **Drag:** move it.
+
+To run with no console window at all, launch with `pythonw.exe` from the
+project folder:
 
 ```
 venv\Scripts\pythonw.exe main.py --background
@@ -137,6 +177,8 @@ venv\Scripts\pythonw.exe main.py --background
 `--background` starts as just the orb, without opening the window. Logs
 go to `data/midas.log` since there's no console. Only one copy runs at a
 time — launching again just shows a "MIDAS is already running" message.
+To restart, quit the running copy first: right-click the orb and choose
+**Quit MIDAS**.
 
 To start MIDAS automatically when you sign in, create a startup shortcut
 (run once in PowerShell from the project folder):
@@ -253,7 +295,7 @@ To bulk-import many items at once (e.g. seeding a fresh install), write
 them as JSON matching `scripts/wardrobe_seed.example.json` and run:
 
 ```
-py -3.12 scripts/seed_wardrobe.py scripts/wardrobe_seed.example.json
+venv\Scripts\python.exe scripts/seed_wardrobe.py scripts/wardrobe_seed.example.json
 ```
 
 Add `--dry-run` to validate without inserting. This isn't idempotent —
@@ -282,7 +324,7 @@ There's no bulk-edit or find-and-replace yet — for anything chat can't
 reach, a direct SQLite edit is the escape hatch:
 
 ```
-py -3.12 -c "from core.db import get_connection; c=get_connection(); c.execute('UPDATE wardrobe_items SET tags = ? WHERE id = ?', ('cotton, casual', 5)); c.commit(); c.close()"
+venv\Scripts\python.exe -c "from core.db import get_connection; c=get_connection(); c.execute('UPDATE wardrobe_items SET tags = ? WHERE id = ?', ('cotton, casual', 5)); c.commit(); c.close()"
 ```
 
 ### Removing items

@@ -23,6 +23,7 @@ import logging
 import queue
 import re
 import threading
+import time
 from typing import Callable
 
 import numpy as np
@@ -47,6 +48,49 @@ _MARKDOWN = re.compile(r"[*_`#>|]+")
 _PLAYBACK_SLICE_SECONDS = 0.1  # stop() latency: one slice at most
 _INTER_SENTENCE_PAUSE_SECONDS = 0.2
 _IDLE_CLOSE_SECONDS = 1.0  # keep the audio stream open across short gaps
+
+# Voice levels for the UI's dot grid: each playback slice is cut into 25ms
+# windows; each window gets a loudness and 8 log-spaced band levels, all
+# 0..1. Per-band dB ranges were measured on af_heart output (low end =
+# median - 6 dB, high end = 99th percentile), so every band uses the full
+# range even though speech has far less energy up high. Costs ~0.4ms per
+# 0.1s slice. Re-measure if KOKORO_VOICE changes a lot.
+VOICE_BANDS = 8
+_LEVEL_WINDOW_SECONDS = 0.025
+_BAND_EDGES_HZ = np.geomspace(80, 8000, VOICE_BANDS + 1)
+_BAND_DB_LO = np.array([-65, -46, -53, -63, -72, -75, -78, -88], dtype=np.float32)
+_BAND_DB_HI = np.array([-42, -23, -32, -35, -35, -46, -50, -49], dtype=np.float32)
+_LOUD_DB_LO, _LOUD_DB_HI = -45.0, -15.0
+_level_tables: dict = {}
+
+
+def _voice_levels(audio: np.ndarray, sample_rate: int) -> list[tuple[float, float, np.ndarray]]:
+    """[(offset seconds into audio, loudness, bands[8]), ...] per 25ms window."""
+    win = int(sample_rate * _LEVEL_WINDOW_SECONDS)
+    if win < 16 or len(audio) < win:
+        return []
+    tables = _level_tables.get((sample_rate, win))
+    if tables is None:
+        freqs = np.fft.rfftfreq(win, 1 / sample_rate)
+        bins = [
+            np.flatnonzero((freqs >= _BAND_EDGES_HZ[i]) & (freqs < _BAND_EDGES_HZ[i + 1]))
+            for i in range(VOICE_BANDS)
+        ]
+        tables = _level_tables[(sample_rate, win)] = (np.hanning(win).astype(np.float32), bins)
+    hann, bins = tables
+    out = []
+    for start in range(0, len(audio) - win + 1, win):
+        w = audio[start : start + win]
+        rms_db = 20 * np.log10(float(np.sqrt(np.mean(w * w))) + 1e-9)
+        mag = np.abs(np.fft.rfft(w * hann)) / (win / 2)
+        db = np.array(
+            [20 * np.log10(float(mag[b].mean()) + 1e-9) if len(b) else -120.0 for b in bins],
+            dtype=np.float32,
+        )
+        bands = np.clip((db - _BAND_DB_LO) / (_BAND_DB_HI - _BAND_DB_LO), 0.0, 1.0)
+        loud = min(1.0, max(0.0, (rms_db - _LOUD_DB_LO) / (_LOUD_DB_HI - _LOUD_DB_LO)))
+        out.append((start / sample_rate, loud, bands))
+    return out
 
 
 def _clean_for_speech(text: str) -> str:
@@ -107,6 +151,7 @@ class TTSEngine:
         self._kokoro = None
         self._muted = False
         self._listeners: list[Callable[[bool], None]] = []
+        self._level_listeners: list[Callable[[list], None]] = []
         self._generation = 0  # bumped by stop(); stale work is dropped
         self._active_utterances = 0
         self._synth_queue: queue.Queue = queue.Queue()
@@ -149,6 +194,33 @@ class TTSEngine:
         listeners must hand off to their own main thread, not touch
         widgets directly. Register at startup only (not thread-safe)."""
         self._listeners.append(fn)
+
+    def add_level_listener(self, fn: Callable[[list], None]) -> None:
+        """fn(frames) as audio is handed to the sound device, where frames
+        is [(time.perf_counter() when audible, loudness 0..1, bands[8]
+        0..1), ...] — one per 25ms of audio. Called on the playback thread,
+        same rules as add_listener. Register at startup only."""
+        self._level_listeners.append(fn)
+
+    def _notify_levels(self, stream, audio: np.ndarray, sample_rate: int) -> None:
+        if not self._level_listeners:
+            return
+        frames = _voice_levels(audio, sample_rate)
+        if not frames:
+            return
+        # write() just returned, so this slice sits at the back of the
+        # device buffer: it becomes audible after roughly the output latency.
+        try:
+            latency = float(stream.latency)
+        except Exception:
+            latency = 0.1
+        audible_at = time.perf_counter() + latency
+        timed = [(audible_at + offset, loud, bands) for offset, loud, bands in frames]
+        for fn in self._level_listeners:
+            try:
+                fn(timed)
+            except Exception:
+                logger.exception("TTS level listener failed")
 
     def _notify(self, speaking: bool) -> None:
         for fn in self._listeners:
@@ -286,6 +358,8 @@ class TTSEngine:
                         stream.abort()  # drop it instead of letting it finish
                         stream.start()
                     break
-                stream.write(audio[start : start + step])
+                chunk = audio[start : start + step]
+                stream.write(chunk)
+                self._notify_levels(stream, chunk, sample_rate)
         finally:
             self._sentence_finished(utterance)
