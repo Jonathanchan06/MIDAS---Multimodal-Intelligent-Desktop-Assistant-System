@@ -216,6 +216,15 @@ class Orchestrator:
         return bounded
 
     def _extract_arguments(self, params_schema: dict, text: str, history: list[dict]) -> dict:
+        # A capped (truncated) generation is invalid JSON — raising here
+        # lands in _run_tool_route's handler, which runs with no arguments.
+        return json.loads(self.extract_raw(params_schema, text, history).message.content)
+
+    def extract_raw(self, params_schema: dict, text: str, history: list[dict]):
+        """The extraction call itself, returning Ollama's full response
+        (raw text plus token counts and timings) unparsed. Public so
+        eval/extraction_eval.py scores exactly this code path — same
+        prompt, schema bounding, and sampling as a live request."""
         messages = [
             {
                 "role": "system",
@@ -226,7 +235,7 @@ class Orchestrator:
             *history,
             {"role": "user", "content": text},
         ]
-        response = self.client.chat(
+        return self.client.chat(
             model=config.ORCHESTRATOR_MODEL,
             messages=messages,
             format=self._bound_strings(params_schema),
@@ -239,9 +248,6 @@ class Orchestrator:
             },
             stream=False,
         )
-        # A capped (truncated) generation is invalid JSON — raising here
-        # lands in _run_tool_route's handler, which runs with no arguments.
-        return json.loads(response.message.content)
 
     def _run_tool_route(
         self, tool_match: tuple[str, dict], text: str, history: list[dict]

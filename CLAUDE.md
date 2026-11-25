@@ -171,8 +171,47 @@ existing tasks" goes to `add_reminder`); the router isn't fully
 deterministic, so ±1–2 cases between runs is noise. It is the baseline for
 the router-replacement benchmark below.
 
-The eval only covers routing. Argument extraction has no eval yet — it's
-been checked with ad-hoc probes (see "Extraction design rule").
+`eval/extraction_eval.py` is the second half: given the right tool, does
+`Orchestrator.extract_raw` (the live extraction call — same prompt,
+schema bounding, sampling) pull out the right arguments? It scores the
+model's **raw** output, before any `post_extract` guard, because that's
+what a model swap or the LoRA extractor changes. Cases are in
+`eval/extraction_cases.json` (103, for the 8 tools that extract; matcher
+spec in `check()`'s docstring). Every failure gets one category —
+`invented_id`, `extra_field`, `padded`, `wrong_time`, etc. — matching the
+failure modes in "Extraction design rule".
+
+```
+python eval/extraction_eval.py                                  # config's model
+python eval/extraction_eval.py --model qwen2.5:7b --temperature 0.3
+python eval/extraction_eval.py --out eval/results/x.json        # save for --compare
+python eval/extraction_eval.py --compare a.json b.json          # side by side + flips
+```
+
+Sampling is at temperature 0.7, so a single run is noisy — use
+`--repeats 3` before trusting a few-case difference. `remind_at` is scored
+by the moment it resolves to (via the reminders tool's own parser,
+relative to the call time), not by its text. The 3 `known_gap` cases
+(`delete_reminder` by description) can't pass under the current schema —
+the summary reports the score with and without them.
+
+Baseline (Nov 2026, `--repeats 3`, raw output, before guards):
+
+| | qwen3:8b (temp 0.7) | qwen2.5:7b (temp 0.3) |
+|---|---|---|
+| pass | 185/309 (59.9%) | 206/309 (66.7%) |
+| mean / p95 latency | 1.83s / 3.22s | 1.08s / 2.03s |
+| tok/s | 17.6 | 24.8 |
+| invalid JSON (hit the cap) | 5 | 0 |
+
+qwen2.5 wins on every tool except `add_reminder` (it does the date math
+itself and gets weekdays wrong). Both models fail `add_wardrobe_item`
+mostly by leaving `color` empty and putting it in `name`, guess a
+category for "what's in my closet" instead of `all`, and pad
+`suggest_fit`'s occasion. qwen3's invalid JSON is a repetition loop
+inside a `mark_worn` **array**: `EXTRACTION_MAX_STRING_LENGTH` bounds
+each string, but nothing bounds the number of items.
+Results JSON is in `eval/results/` (use it with `--compare`).
 
 ## In progress
 
