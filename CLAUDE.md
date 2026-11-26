@@ -233,6 +233,75 @@ Both fail `update_wardrobe_item` mostly by adding fields (15% / 0%).
 extractor (default: the chat model). Results JSON is in `eval/results/`
 (`schema_*` = current prompt; use with `--compare`).
 
+**Hard set** (`eval/extraction_cases_hard.json`, 55 cases, `--cases hard`
+or `--cases all`): spelled-out times ("five thirty pm", "quarter past
+nine tonight"), mid-sentence corrections ("at 5, no wait, make it 6pm"),
+distractors ("the dentist, not the vet"), typos/texting ("rmind me 2 pay
+rent tmrw"), garments not in the generator's vocabulary (anorak, gilet,
+jorts), multi-field updates. Written as an **out-of-distribution** check
+for the LoRA: it's **frozen**, and nothing from it may go into the
+training generator (the generator's leak guard drops near-copies of both
+case files). Only fix a gold answer when it grades a runtime-correct
+answer as wrong — then re-score saved outputs with
+`--regrade eval/results/hard_*.json`, no model calls. `--repeats 3`:
+
+| | core | hard |
+|---|---|---|
+| qwen3:8b (GPU) | 95.0% | 89.1% |
+| qwen2.5:7b (GPU) | 94.7% | 92.1% |
+| qwen3:1.7b (CPU) | 73.6% | 63.0% |
+| qwen2.5:0.5b (CPU) | 56.6% | 46.1% |
+
+A LoRA that gains on core but not hard has learned the generator's
+templates, not the task.
+
+**LoRA training** (`training/`): `gen_extraction_data.py` writes
+`training/data/extraction_{train,val}.jsonl` (same prompt builder as live,
+labels correct by construction). `train_lora.py` fine-tunes on the GPU in
+its own venv (`~/midas-train-venv`: torch cu126 + transformers + peft —
+not the MIDAS venv) and writes to `~/midas-train/<run>/` (outside
+OneDrive: weights must not sync). Stop Ollama's GPU models first
+(`ollama stop qwen3:8b`). `export_ollama.py <merged dir> <name>` registers
+it with the stock model's chat template; then eval it with `--model
+<name> --num-gpu 0`.
+
+First LoRA (qwen2.5:0.5b, r=16, 3 epochs, 26 min on the 4050), scored
+through transformers (greedy, **no grammar**, 1 run; Ollama can't serve it
+yet, see below): **core 97.2%, hard 78.2%** (stock 0.5b in Ollama with
+grammar: 56.6% / 46.1%). Every output was valid JSON. Hard-set misses:
+distractors ("the dentist, not the vet" → both), spelled/ambiguous hours
+("thursday at 4" → 04:00), multi-field updates split into two entries,
+one item read as two. **Ollama 0.40 can't import it:** safetensors import
+is MLX-only (no Qwen2) and `ADAPTER` is gone — it needs a GGUF via
+llama.cpp's `convert_hf_to_gguf.py`.
+
+**Decision (Nov 2026): LoRA parked, `EXTRACTION_MODEL` stays qwen3:8b.**
+The LoRA beats the 8B on core but loses on hard (78.2% vs 89.1%), and its
+misses are the *harmful* kind — deleting/marking the item the user said
+"not" to, a 4am reminder — while the 8B's are benign (an added item saved
+without `color`). Its only upside is speed, and that's smaller than it
+looks: extraction runs only on tool turns, and the 8B is already resident
+as the chat model (no VRAM to free). Switch only if a LoRA:
+1. matches qwen3:8b on the hard set with **zero** wrong-delete /
+   wrong-item / wrong-time failures, and
+2. measured in Ollama on CPU, saves ≥ ~0.5s per tool call.
+
+To resume: (a) add general variety to the generator — "not the X"
+distractors, "no wait, make it…" corrections, bare hours that mean pm,
+spelled-out numbers, multi-field updates — then retrain; since those
+patterns were found by reading hard-set failures, write a **fresh** hard
+set before trusting the score; (b) get a GGUF (llama.cpp clone + `pip
+install -e gguf-py` in the training venv — needs the user's OK, auto mode
+blocked it), rewrite `export_ollama.py` to `FROM` the .gguf, and run the
+real eval (`--num-gpu 0 --repeats 3`). Artifacts: adapter + merged model
+in `~/midas-train/qwen2.5-0.5b-extract/` (`train_log.json` has the
+per-epoch val loss/exact match: 0.057/83.7% → 0.040/86.0% → 0.033/87.3%);
+transformers-scored results in `eval/results/hf_{lora,base}_qwen2.5-0.5b.json`
+(`extraction_eval.py --dump-prompts` → `training/hf_generate.py` →
+`--regrade`; base looks terrible there,
+19.9%, only because without a grammar it wraps JSON in prose; use the
+Ollama numbers for it).
+
 ## In progress
 
 - **Router replacement:** a PyTorch-trained classifier to replace

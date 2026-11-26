@@ -32,3 +32,7 @@ ROADMAP.md
 data/orb_position.json
 data/*.log
 data/*.log.*
+
+# Generated LoRA training data (rebuild byte-identical with
+# `python training/gen_extraction_data.py`, default seed)
+training/data/
