@@ -55,11 +55,20 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import config  # noqa: E402
-from core.orchestrator import Orchestrator  # noqa: E402
+from core.orchestrator import Orchestrator, build_extraction_messages  # noqa: E402
 from main import TOOL_REGISTRY  # noqa: E402
 from tools.reminders import _parse_datetime, resolve_when  # noqa: E402
 
 CASES_PATH = Path(__file__).parent / "extraction_cases.json"
+# "core": the original cases, one clear phrasing each. "hard": realistic
+# messages templates don't produce — spoken/typo'd text, spelled-out
+# times, self-corrections, distractors, unfamiliar garment words. Written
+# before the LoRA was trained and kept frozen: training data must never be
+# written against it, or it stops measuring generalization.
+CASE_SETS = {
+    "core": CASES_PATH,
+    "hard": Path(__file__).parent / "extraction_cases_hard.json",
+}
 # Pinned clock for every case: a Wednesday 10:00, so "tonight at 9pm",
 # "at noon", and weekday cases have one right answer whenever this runs.
 EVAL_NOW = "2026-11-25T10:00:00"
@@ -77,7 +86,7 @@ _FILLER = {
 # Words that only point at "the outfit you just suggested" (mark_worn).
 _DEICTIC = _FILLER | {
     "those", "these", "them", "outfit", "fit", "everything", "all", "clothe",
-    "suggestion", "look", "one", "same", "suggested", "picked", "you",
+    "suggestion", "look", "one", "same", "suggested", "picked", "you", "what",
 }
 _WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
 _TIME_TOLERANCE = timedelta(minutes=3)
@@ -143,12 +152,17 @@ def check(spec, value, ctx: Ctx, path: str, present: bool = True) -> list[dict]:
     {"time": {...}}            remind_at; see _check_time
     {"entries": [...], "only": bool}  list matched order-free, no extras
     {"fields": {...}, "only": bool}   object; "only" makes other keys extra_field
+    {"any_of": [spec, ...]}    passes if any sub-spec passes (for answers
+                               that are equally correct at runtime)
     """
     out: list[dict] = []
     if isinstance(spec, list):
         spec = {"words": spec, "grounded": True}
     if not isinstance(spec, dict):
         spec = {"eq": spec}
+    if "any_of" in spec:
+        tries = [check(s, value, ctx, path, present) for s in spec["any_of"]]
+        return [] if any(not t for t in tries) else tries[0]
 
     if not present:
         if spec.get("optional") or spec.get("empty") or spec.get("deictic"):
@@ -307,12 +321,15 @@ def _check_time(spec: dict, value, ctx: Ctx, path: str) -> list[dict]:
 
 # --- running ----------------------------------------------------------------
 
-def load_cases(tool_filter: str | None) -> list[dict]:
-    with open(CASES_PATH, encoding="utf-8") as f:
-        cases = json.load(f)
+def load_cases(tool_filter: str | None, which: str = "core") -> list[dict]:
+    names = list(CASE_SETS) if which == "all" else [which]
+    cases = []
+    for name in names:
+        with open(CASE_SETS[name], encoding="utf-8") as f:
+            cases += [{**case, "set": name} for case in json.load(f)]
     unknown = {c["tool"] for c in cases} - TOOL_REGISTRY.keys()
     if unknown:
-        sys.exit(f"unknown tool(s) in {CASES_PATH.name}: {sorted(unknown)}")
+        sys.exit(f"unknown tool(s) in case files: {sorted(unknown)}")
     if tool_filter:
         cases = [c for c in cases if c["tool"] == tool_filter]
         if not cases:
@@ -323,7 +340,8 @@ def load_cases(tool_filter: str | None) -> list[dict]:
 def run_case(orchestrator: Orchestrator, case: dict, now: datetime) -> dict:
     function_schema = TOOL_REGISTRY[case["tool"]]["schema"]["function"]
     history = case.get("history", [])
-    record = {"tool": case["tool"], "text": case["text"], "raw": None, "args": None}
+    record = {"tool": case["tool"], "set": case.get("set", "core"), "text": case["text"],
+              "raw": None, "args": None}
     start = time.perf_counter()
     try:
         response = orchestrator.extract_raw(function_schema, case["text"], history, now=now)
@@ -387,6 +405,11 @@ def summarize(records: list[dict], cases: list[dict]) -> dict:
         t["passed"] += not r["failures"]
         t["seconds"].append(r["seconds"])
 
+    per_set: dict[str, dict] = defaultdict(lambda: {"passed": 0, "total": 0})
+    for r in records:
+        per_set[r.get("set", "core")]["total"] += 1
+        per_set[r.get("set", "core")]["passed"] += not r["failures"]
+
     # Count each category once per run, so one bad list doesn't dominate.
     categories = Counter(c for r in records for c in {f["category"] for f in r["failures"]})
     timed = [r for r in records if "output_tokens" in r]
@@ -398,6 +421,7 @@ def summarize(records: list[dict], cases: list[dict]) -> dict:
         "total": len(records),
         "passed_excluding_known_gaps": sum(not r["failures"] for r in scored),
         "total_excluding_known_gaps": len(scored),
+        "per_set": dict(sorted(per_set.items())),
         "per_tool": {
             tool: {
                 "passed": t["passed"], "total": t["total"],
@@ -424,6 +448,9 @@ def print_summary(summary: dict, records: list[dict], repeats: int) -> None:
     print("\n" + "=" * 72)
     print(f"Overall:                  {_pct(summary['passed'], summary['total'])}")
     print(f"Excluding known gaps:     {_pct(summary['passed_excluding_known_gaps'], summary['total_excluding_known_gaps'])}")
+    if len(summary["per_set"]) > 1:
+        for name, s in summary["per_set"].items():
+            print(f"  {name + ' set:':<24}{_pct(s['passed'], s['total'])}")
 
     print(f"\n{'tool':<24} {'pass':>14} {'mean s':>8}")
     for tool, t in summary["per_tool"].items():
@@ -464,6 +491,12 @@ def compare(path_a: str, path_b: str) -> None:
 
     print(f"{'':<24} {name_a:>{width}} {name_b:>{width}}")
     print(f"{'overall':<24} {_pct(sa['passed'], sa['total']):>{width}} {_pct(sb['passed'], sb['total']):>{width}}")
+    sets = sorted(set(sa.get("per_set", {})) | set(sb.get("per_set", {})))
+    if len(sets) > 1 or a.get("cases") != b.get("cases"):
+        for name in sets:
+            pa, pb = sa.get("per_set", {}).get(name), sb.get("per_set", {}).get(name)
+            cell = lambda p: _pct(p["passed"], p["total"]) if p else "-"  # noqa: E731
+            print(f"  {name + ' set':<22} {cell(pa):>{width}} {cell(pb):>{width}}")
     for tool in sorted(set(sa["per_tool"]) | set(sb["per_tool"])):
         ta, tb = sa["per_tool"].get(tool), sb["per_tool"].get(tool)
         cell = lambda t: _pct(t["passed"], t["total"]) if t else "-"  # noqa: E731
@@ -487,12 +520,36 @@ def compare(path_a: str, path_b: str) -> None:
                     print(f"  {tool:<22} {text!r}")
 
 
+def regrade(path: str) -> None:
+    """Re-check a results file's raw outputs with the current matcher and
+    cases -- no model calls. Records that failed before parsing (call
+    errors, non-JSON) keep their failures."""
+    data = json.loads(Path(path).read_text(encoding="utf-8"))
+    cases = load_cases(None, data.get("cases", "core"))
+    by_key = {(c["set"], c["tool"], c["text"]): c for c in cases}
+    now = datetime.fromisoformat(data["eval_now"])
+    for record in data["records"]:
+        case = by_key.get((record.get("set", "core"), record["tool"], record["text"]))
+        if case is None or record.get("args") is None:
+            continue
+        view = TOOL_VIEWS.get(case["tool"], lambda a, _now: a)(record["args"], now)
+        record["failures"] = check({"fields": case["expect"], "only": True}, view,
+                                   Ctx(case["text"], case.get("history", []), now), "args")
+    data["summary"] = summarize(data["records"], cases)
+    data["regraded_at"] = datetime.now().isoformat(timespec="seconds")
+    Path(path).write_text(json.dumps(data, indent=2), encoding="utf-8")
+    print(f"=== {path} ({data['model']})")
+    print_summary(data["summary"], data["records"], data["repeats"])
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--model", help="override config.EXTRACTION_MODEL")
     parser.add_argument("--num-gpu", type=int, help="layers on GPU (0 = CPU only, like the router)")
     parser.add_argument("--temperature", type=float, help="override sampling temperature")
     parser.add_argument("--tool", help="only run cases for this tool")
+    parser.add_argument("--cases", choices=[*CASE_SETS, "all"], default="core",
+                        help="which case set to run (default: core)")
     parser.add_argument("--repeats", type=int, default=1, help="runs per case (sampling isn't greedy)")
     parser.add_argument("--out", help="write full results JSON here (for --compare)")
     parser.add_argument(
@@ -501,10 +558,23 @@ def main() -> None:
              "morning) -- pinned so runs at different times of day compare",
     )
     parser.add_argument("--compare", nargs=2, metavar=("A.json", "B.json"))
+    parser.add_argument("--regrade", nargs="+", metavar="RESULT.json",
+                        help="re-check saved raw outputs against the current case files "
+                             "(after fixing a gold answer) and rewrite the results in place")
+    parser.add_argument("--dump-prompts", metavar="PROMPTS.json",
+                        help="write the exact extraction messages for each case (pinned clock) "
+                             "and exit -- input for training/hf_generate.py")
     args = parser.parse_args()
+    # Windows consoles/redirects default to cp1252, which can't print some
+    # case texts (emoji in the hard set) and would crash mid-run.
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
     if args.compare:
         compare(*args.compare)
+        return
+    if args.regrade:
+        for path in args.regrade:
+            regrade(path)
         return
 
     if args.model:
@@ -514,7 +584,16 @@ def main() -> None:
     if args.temperature is not None:
         config.ORCHESTRATOR_SAMPLING = {**config.ORCHESTRATOR_SAMPLING, "temperature": args.temperature}
 
-    cases = load_cases(args.tool)
+    cases = load_cases(args.tool, args.cases)
+    if args.dump_prompts:
+        now = datetime.fromisoformat(args.now)
+        prompts = [{"tool": c["tool"], "set": c["set"], "text": c["text"],
+                    "messages": build_extraction_messages(
+                        TOOL_REGISTRY[c["tool"]]["schema"]["function"], c["text"],
+                        c.get("history", []), now=now)} for c in cases]
+        Path(args.dump_prompts).write_text(json.dumps(prompts, ensure_ascii=False), encoding="utf-8")
+        print(f"Wrote {len(prompts)} prompts to {args.dump_prompts}")
+        return
     orchestrator = Orchestrator(tool_registry=TOOL_REGISTRY)
     now = datetime.fromisoformat(args.now)
 
@@ -547,6 +626,7 @@ def main() -> None:
             "model": config.EXTRACTION_MODEL,
             "sampling": config.ORCHESTRATOR_SAMPLING,
             "repeats": args.repeats,
+            "cases": args.cases,
             "eval_now": now.isoformat(timespec="seconds"),
             "run_at": datetime.now().isoformat(timespec="seconds"),
             "summary": summary,

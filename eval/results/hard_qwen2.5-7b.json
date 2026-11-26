@@ -1,0 +1,3071 @@
+{
+  "model": "qwen2.5:7b",
+  "sampling": {
+    "temperature": 0.3,
+    "top_p": 0.8,
+    "top_k": 20
+  },
+  "repeats": 3,
+  "cases": "hard",
+  "eval_now": "2026-11-25T10:00:00",
+  "run_at": "2026-11-25T23:28:28",
+  "summary": {
+    "passed": 152,
+    "total": 165,
+    "passed_excluding_known_gaps": 152,
+    "total_excluding_known_gaps": 165,
+    "per_set": {
+      "hard": {
+        "passed": 152,
+        "total": 165
+      }
+    },
+    "per_tool": {
+      "add_reminder": {
+        "passed": 21,
+        "total": 27,
+        "mean_seconds": 1.278
+      },
+      "add_wardrobe_item": {
+        "passed": 20,
+        "total": 21,
+        "mean_seconds": 2.63
+      },
+      "delete_reminder": {
+        "passed": 18,
+        "total": 18,
+        "mean_seconds": 0.45
+      },
+      "delete_wardrobe_item": {
+        "passed": 18,
+        "total": 18,
+        "mean_seconds": 0.497
+      },
+      "list_wardrobe_items": {
+        "passed": 21,
+        "total": 21,
+        "mean_seconds": 0.34
+      },
+      "mark_worn": {
+        "passed": 18,
+        "total": 18,
+        "mean_seconds": 0.551
+      },
+      "suggest_fit": {
+        "passed": 12,
+        "total": 18,
+        "mean_seconds": 0.423
+      },
+      "update_wardrobe_item": {
+        "passed": 24,
+        "total": 24,
+        "mean_seconds": 1.208
+      }
+    },
+    "failure_categories": {
+      "invalid_output": 0,
+      "invented_id": 0,
+      "extra_field": 0,
+      "padded": 6,
+      "wrong_value": 0,
+      "wrong_time": 6,
+      "unparseable_time": 0,
+      "missing": 1,
+      "extra_entry": 0
+    },
+    "latency": {
+      "mean_seconds": 0.972,
+      "p50_seconds": 0.675,
+      "p95_seconds": 2.33,
+      "mean_output_tokens": 24.3,
+      "tokens_per_second": 29.1
+    }
+  },
+  "records": [
+    {
+      "tool": "add_reminder",
+      "set": "hard",
+      "text": "remind me to call mom at five thirty pm",
+      "raw": "{\"text\": \"call mom\", \"day\": \"\", \"time\": \"15:30\", \"in_minutes\": 0}",
+      "args": {
+        "text": "call mom",
+        "day": "",
+        "time": "15:30",
+        "in_minutes": 0
+      },
+      "seconds": 1.4450089999591,
+      "output_tokens": 29,
+      "gen_seconds": 1.073916,
+      "load_seconds": 0.0189029,
+      "failures": [
+        {
+          "category": "wrong_time",
+          "path": "args.remind_at",
+          "message": "15:30, wanted 17:30"
+        }
+      ]
+    },
+    {
+      "tool": "add_reminder",
+      "set": "hard",
+      "text": "remind me at 5, no wait, make it 6pm, to pick up the dry cleaning",
+      "raw": "{\"text\": \"pick up the dry cleaning\", \"day\": \"today\", \"time\": \"18:00\", \"in_minutes\": 0}",
+      "args": {
+        "text": "pick up the dry cleaning",
+        "day": "today",
+        "time": "18:00",
+        "in_minutes": 0
+      },
+      "seconds": 1.3831523000262678,
+      "output_tokens": 34,
+      "gen_seconds": 1.210414,
+      "load_seconds": 0.0133912,
+      "failures": []
+    },
+    {
+      "tool": "add_reminder",
+      "set": "hard",
+      "text": "so I've got this dentist thing thursday at 4, make sure I don't forget",
+      "raw": "{\"text\": \"dentist thing\", \"day\": \"thursday\", \"time\": \"16:00\", \"in_minutes\": 0}",
+      "args": {
+        "text": "dentist thing",
+        "day": "thursday",
+        "time": "16:00",
+        "in_minutes": 0
+      },
+      "seconds": 1.3112792000174522,
+      "output_tokens": 33,
+      "gen_seconds": 1.163402,
+      "load_seconds": 0.0134691,
+      "failures": []
+    },
+    {
+      "tool": "add_reminder",
+      "set": "hard",
+      "text": "rmind me 2 pay rent tmrw at 9am",
+      "raw": "{\"text\": \"pay rent\", \"day\": \"tomorrow\", \"time\": \"09:00\", \"in_minutes\": 0}",
+      "args": {
+        "text": "pay rent",
+        "day": "tomorrow",
+        "time": "09:00",
+        "in_minutes": 0
+      },
+      "seconds": 1.2690852000378072,
+      "output_tokens": 32,
+      "gen_seconds": 1.125271,
+      "load_seconds": 0.0115888,
+      "failures": []
+    },
+    {
+      "tool": "add_reminder",
+      "set": "hard",
+      "text": "in twenty minutes remind me to flip the laundry",
+      "raw": "{\"text\": \"flip the laundry\", \"day\": \"\", \"time\": \"10:20\", \"in_minutes\": 20}",
+      "args": {
+        "text": "flip the laundry",
+        "day": "",
+        "time": "10:20",
+        "in_minutes": 20
+      },
+      "seconds": 1.1767129999934696,
+      "output_tokens": 31,
+      "gen_seconds": 1.062560999,
+      "load_seconds": 0.0121774,
+      "failures": []
+    },
+    {
+      "tool": "add_reminder",
+      "set": "hard",
+      "text": "my boss wants the slides by friday so remind me thursday evening to finish them",
+      "raw": "{\"text\": \"finish the slides\", \"day\": \"thursday\", \"time\": \"18:00\"}",
+      "args": {
+        "text": "finish the slides",
+        "day": "thursday",
+        "time": "18:00"
+      },
+      "seconds": 1.026354400033597,
+      "output_tokens": 26,
+      "gen_seconds": 0.88043,
+      "load_seconds": 0.0140693,
+      "failures": []
+    },
+    {
+      "tool": "add_reminder",
+      "set": "hard",
+      "text": "remind me to take the trash out at quarter past nine tonight",
+      "raw": "{\"text\": \"take the trash out\", \"day\": \"\", \"time\": \"21:15\", \"in_minutes\": 90}",
+      "args": {
+        "text": "take the trash out",
+        "day": "",
+        "time": "21:15",
+        "in_minutes": 90
+      },
+      "seconds": 1.2626521000056528,
+      "output_tokens": 32,
+      "gen_seconds": 1.119261,
+      "load_seconds": 0.0119324,
+      "failures": [
+        {
+          "category": "wrong_time",
+          "path": "args.remind_at",
+          "message": "11:30, wanted 21:15"
+        }
+      ]
+    },
+    {
+      "tool": "add_reminder",
+      "set": "hard",
+      "text": "REMIND ME TO CALL THE PLUMBER ON DECEMBER 9TH AT 1PM",
+      "raw": "{\"text\": \"call the plumber\", \"day\": \"date\", \"time\": \"13:00\", \"date\": \"12-09\", \"in_minutes\": 0}",
+      "args": {
+        "text": "call the plumber",
+        "day": "date",
+        "time": "13:00",
+        "date": "12-09",
+        "in_minutes": 0
+      },
+      "seconds": 1.6765312000061385,
+      "output_tokens": 42,
+      "gen_seconds": 1.512563,
+      "load_seconds": 0.0198915,
+      "failures": []
+    },
+    {
+      "tool": "add_reminder",
+      "set": "hard",
+      "text": "can u remind me abt my flight on saturday at 6:45am",
+      "raw": "{\"text\": \"my flight\", \"day\": \"saturday\", \"time\": \"06:45\"}",
+      "args": {
+        "text": "my flight",
+        "day": "saturday",
+        "time": "06:45"
+      },
+      "seconds": 0.9932596999569796,
+      "output_tokens": 25,
+      "gen_seconds": 0.851209,
+      "load_seconds": 0.0102147,
+      "failures": []
+    },
+    {
+      "tool": "delete_reminder",
+      "set": "hard",
+      "text": "delete the reminder about the dentist, not the one about the vet",
+      "raw": "{\"reminders\": [\"dentist\"]}",
+      "args": {
+        "reminders": [
+          "dentist"
+        ]
+      },
+      "seconds": 0.4911599999759346,
+      "output_tokens": 9,
+      "gen_seconds": 0.279351,
+      "load_seconds": 0.0146538,
+      "failures": []
+    },
+    {
+      "tool": "delete_reminder",
+      "set": "hard",
+      "text": "uh can you get rid of reminders 4 and 11",
+      "raw": "{\"reminders\": [\"4\", \"11\"]}",
+      "args": {
+        "reminders": [
+          "4",
+          "11"
+        ]
+      },
+      "seconds": 0.5411109999986365,
+      "output_tokens": 12,
+      "gen_seconds": 0.387477,
+      "load_seconds": 0.0124306,
+      "failures": []
+    },
+    {
+      "tool": "delete_reminder",
+      "set": "hard",
+      "text": "I already called grandma so you can kill that reminder",
+      "raw": "{\"reminders\": [\"call grandma\"]}",
+      "args": {
+        "reminders": [
+          "call grandma"
+        ]
+      },
+      "seconds": 0.4061803999939002,
+      "output_tokens": 9,
+      "gen_seconds": 0.28842,
+      "load_seconds": 0.0144987,
+      "failures": []
+    },
+    {
+      "tool": "delete_reminder",
+      "set": "hard",
+      "text": "cancel the rent one and the one about my flight",
+      "raw": "{\"reminders\": [\"rent\", \"flight\"]}",
+      "args": {
+        "reminders": [
+          "rent",
+          "flight"
+        ]
+      },
+      "seconds": 0.46760519995586947,
+      "output_tokens": 11,
+      "gen_seconds": 0.356343,
+      "load_seconds": 0.0149938,
+      "failures": []
+    },
+    {
+      "tool": "delete_reminder",
+      "set": "hard",
+      "text": "the plumber one is done, delete it",
+      "raw": "{\"reminders\": [\"call the plumber\"]}",
+      "args": {
+        "reminders": [
+          "call the plumber"
+        ]
+      },
+      "seconds": 0.4588808999978937,
+      "output_tokens": 10,
+      "gen_seconds": 0.319996,
+      "load_seconds": 0.0133403,
+      "failures": []
+    },
+    {
+      "tool": "delete_reminder",
+      "set": "hard",
+      "text": "nvm the gym reminder lol",
+      "raw": "{\"reminders\": [\"gym\"]}",
+      "args": {
+        "reminders": [
+          "gym"
+        ]
+      },
+      "seconds": 0.3895749000366777,
+      "output_tokens": 9,
+      "gen_seconds": 0.283979,
+      "load_seconds": 0.0112217,
+      "failures": []
+    },
+    {
+      "tool": "suggest_fit",
+      "set": "hard",
+      "text": "what should I wear, it's supposed to rain all day",
+      "raw": "{\n  \"occasion\": \"\"\n}",
+      "args": {
+        "occasion": ""
+      },
+      "seconds": 0.42425469995941967,
+      "output_tokens": 8,
+      "gen_seconds": 0.244562,
+      "load_seconds": 0.0144371,
+      "failures": []
+    },
+    {
+      "tool": "suggest_fit",
+      "set": "hard",
+      "text": "my cousin's quincea\u00f1era is saturday, what do I wear",
+      "raw": "{\"occasion\": \"cousin's quincea\u00f1era\"}",
+      "args": {
+        "occasion": "cousin's quincea\u00f1era"
+      },
+      "seconds": 0.6015080000506714,
+      "output_tokens": 14,
+      "gen_seconds": 0.456039,
+      "load_seconds": 0.0130175,
+      "failures": []
+    },
+    {
+      "tool": "suggest_fit",
+      "set": "hard",
+      "text": "black tie gala tonight, help",
+      "raw": "{\"occasion\": \"black tie gala\"}",
+      "args": {
+        "occasion": "black tie gala"
+      },
+      "seconds": 0.3922416999703273,
+      "output_tokens": 9,
+      "gen_seconds": 0.284632,
+      "load_seconds": 0.0140913,
+      "failures": []
+    },
+    {
+      "tool": "suggest_fit",
+      "set": "hard",
+      "text": "I just got back from the gym, what should I wear to dinner",
+      "raw": "{\"occasion\": \"dinner date\"}",
+      "args": {
+        "occasion": "dinner date"
+      },
+      "seconds": 0.43116889998782426,
+      "output_tokens": 9,
+      "gen_seconds": 0.283079,
+      "load_seconds": 0.0138758,
+      "failures": [
+        {
+          "category": "padded",
+          "path": "args.occasion",
+          "message": "'dinner date': ['date'] never said"
+        }
+      ]
+    },
+    {
+      "tool": "suggest_fit",
+      "set": "hard",
+      "text": "wat do i wear 2 my interview",
+      "raw": "{\"occasion\": \"job interview\"}",
+      "args": {
+        "occasion": "job interview"
+      },
+      "seconds": 0.35794779995922,
+      "output_tokens": 8,
+      "gen_seconds": 0.248144,
+      "load_seconds": 0.0129863,
+      "failures": [
+        {
+          "category": "padded",
+          "path": "args.occasion",
+          "message": "'job interview': ['job'] never said"
+        }
+      ]
+    },
+    {
+      "tool": "suggest_fit",
+      "set": "hard",
+      "text": "pick me something for hiking, it's like 40 out",
+      "raw": "{\"occasion\": \"hiking\"}",
+      "args": {
+        "occasion": "hiking"
+      },
+      "seconds": 0.39911259996006265,
+      "output_tokens": 8,
+      "gen_seconds": 0.251351,
+      "load_seconds": 0.0154404,
+      "failures": []
+    },
+    {
+      "tool": "add_wardrobe_item",
+      "set": "hard",
+      "text": "add an olive anorak",
+      "raw": "{\"items\": [{\"category\": \"outerwear\", \"name\": \"olive anorak\", \"color\": \"olive\", \"warmth_level\": 3, \"formality\": 1, \"tags\": \"\", \"layer\": \"\"}]}",
+      "args": {
+        "items": [
+          {
+            "category": "outerwear",
+            "name": "olive anorak",
+            "color": "olive",
+            "warmth_level": 3,
+            "formality": 1,
+            "tags": "",
+            "layer": ""
+          }
+        ]
+      },
+      "seconds": 2.226963999972213,
+      "output_tokens": 53,
+      "gen_seconds": 1.847275,
+      "load_seconds": 0.0134584,
+      "failures": []
+    },
+    {
+      "tool": "add_wardrobe_item",
+      "set": "hard",
+      "text": "I picked up a cream gilet and some brown mules",
+      "raw": "{\"items\": [{\"category\": \"outerwear\", \"name\": \"cream gilet\", \"color\": \"cream\", \"warmth_level\": 2, \"formality\": 2, \"tags\": \"\", \"layer\": \"mid\"}]}",
+      "args": {
+        "items": [
+          {
+            "category": "outerwear",
+            "name": "cream gilet",
+            "color": "cream",
+            "warmth_level": 2,
+            "formality": 2,
+            "tags": "",
+            "layer": "mid"
+          }
+        ]
+      },
+      "seconds": 1.9304989999509417,
+      "output_tokens": 51,
+      "gen_seconds": 1.778588,
+      "load_seconds": 0.0128217,
+      "failures": [
+        {
+          "category": "missing",
+          "path": "args.items[1]",
+          "message": "no entry for {'fields': {'name': ['mule'], 'category': 'shoes', 'color': ['brown']}}"
+        }
+      ]
+    },
+    {
+      "tool": "add_wardrobe_item",
+      "set": "hard",
+      "text": "add a black hoodie, actually make it grey",
+      "raw": "{\n  \"items\": [\n    {\n      \"category\": \"top\",\n      \"name\": \"grey hoodie\",\n      \"color\": \"grey\",\n      \"warmth_level\": 3,\n      \"formality\": 1,\n      \"tags\": \"\",\n      \"layer\": \"\"\n    }\n  ]\n}",
+      "args": {
+        "items": [
+          {
+            "category": "top",
+            "name": "grey hoodie",
+            "color": "grey",
+            "warmth_level": 3,
+            "formality": 1,
+            "tags": "",
+            "layer": ""
+          }
+        ]
+      },
+      "seconds": 2.3298985000001267,
+      "output_tokens": 63,
+      "gen_seconds": 2.21079,
+      "load_seconds": 0.0151449,
+      "failures": []
+    },
+    {
+      "tool": "add_wardrobe_item",
+      "set": "hard",
+      "text": "add white jorts and a grey quarter-zip",
+      "raw": "{\n  \"items\": [\n    {\n      \"category\": \"bottom\",\n      \"name\": \"white jorts\",\n      \"color\": \"white\",\n      \"warmth_level\": 1,\n      \"formality\": 1\n    },\n    {\n      \"category\": \"top\",\n      \"name\": \"grey quarter-zip\",\n      \"color\": \"grey\",\n      \"warmth_level\": 2,\n      \"formality\": 2\n    }\n  ]\n}",
+      "args": {
+        "items": [
+          {
+            "category": "bottom",
+            "name": "white jorts",
+            "color": "white",
+            "warmth_level": 1,
+            "formality": 1
+          },
+          {
+            "category": "top",
+            "name": "grey quarter-zip",
+            "color": "grey",
+            "warmth_level": 2,
+            "formality": 2
+          }
+        ]
+      },
+      "seconds": 3.604988000006415,
+      "output_tokens": 99,
+      "gen_seconds": 3.489402,
+      "load_seconds": 0.0135543,
+      "failures": []
+    },
+    {
+      "tool": "add_wardrobe_item",
+      "set": "hard",
+      "text": "add my new sneakers - they're the red ones with the white sole",
+      "raw": "{\"items\": [{\"category\": \"shoes\", \"name\": \"red sneakers with white sole\", \"color\": \"red\", \"tags\": \"\"}]}",
+      "args": {
+        "items": [
+          {
+            "category": "shoes",
+            "name": "red sneakers with white sole",
+            "color": "red",
+            "tags": ""
+          }
+        ]
+      },
+      "seconds": 1.2715917999739759,
+      "output_tokens": 33,
+      "gen_seconds": 1.12377,
+      "load_seconds": 0.0118291,
+      "failures": []
+    },
+    {
+      "tool": "add_wardrobe_item",
+      "set": "hard",
+      "text": "bought 2 flannel shirts, one green one blue",
+      "raw": "{\n  \"items\": [\n    {\n      \"category\": \"top\",\n      \"name\": \"green flannel shirt\",\n      \"color\": \"green\",\n      \"warmth_level\": 3,\n      \"formality\": 2,\n      \"tags\": \"\"\n    },\n    {\n      \"category\": \"top\",\n      \"name\": \"blue flannel shirt\",\n      \"color\": \"blue\",\n      \"warmth_level\": 3,\n      \"formality\": 2,\n      \"tags\": \"\"\n    }\n  ]\n}",
+      "args": {
+        "items": [
+          {
+            "category": "top",
+            "name": "green flannel shirt",
+            "color": "green",
+            "warmth_level": 3,
+            "formality": 2,
+            "tags": ""
+          },
+          {
+            "category": "top",
+            "name": "blue flannel shirt",
+            "color": "blue",
+            "warmth_level": 3,
+            "formality": 2,
+            "tags": ""
+          }
+        ]
+      },
+      "seconds": 3.9937306999927387,
+      "output_tokens": 110,
+      "gen_seconds": 3.849045,
+      "load_seconds": 0.0124635,
+      "failures": []
+    },
+    {
+      "tool": "add_wardrobe_item",
+      "set": "hard",
+      "text": "my sister gave me a beige cashmere scarf, save it",
+      "raw": "{\"items\": [{\"category\": \"accessory\", \"name\": \"beige cashmere scarf\", \"color\": \"beige\", \"formality\": 3, \"tags\": \"cashmere\"}]}",
+      "args": {
+        "items": [
+          {
+            "category": "accessory",
+            "name": "beige cashmere scarf",
+            "color": "beige",
+            "formality": 3,
+            "tags": "cashmere"
+          }
+        ]
+      },
+      "seconds": 1.6440548000391573,
+      "output_tokens": 43,
+      "gen_seconds": 1.499244,
+      "load_seconds": 0.0113168,
+      "failures": []
+    },
+    {
+      "tool": "list_wardrobe_items",
+      "set": "hard",
+      "text": "wats in my closet",
+      "raw": "{\"category\": \"all\"}",
+      "args": {
+        "category": "all"
+      },
+      "seconds": 0.3429380000452511,
+      "output_tokens": 7,
+      "gen_seconds": 0.213047,
+      "load_seconds": 0.0140911,
+      "failures": []
+    },
+    {
+      "tool": "list_wardrobe_items",
+      "set": "hard",
+      "text": "everything please, list my whole wardrobe",
+      "raw": "{\"category\": \"all\"}",
+      "args": {
+        "category": "all"
+      },
+      "seconds": 0.3280726000084542,
+      "output_tokens": 7,
+      "gen_seconds": 0.215204,
+      "load_seconds": 0.0110818,
+      "failures": []
+    },
+    {
+      "tool": "list_wardrobe_items",
+      "set": "hard",
+      "text": "show me my kicks",
+      "raw": "{\"category\": \"shoes\"}",
+      "args": {
+        "category": "shoes"
+      },
+      "seconds": 0.3568478000233881,
+      "output_tokens": 8,
+      "gen_seconds": 0.248581,
+      "load_seconds": 0.0129609,
+      "failures": []
+    },
+    {
+      "tool": "list_wardrobe_items",
+      "set": "hard",
+      "text": "what do I have for my legs",
+      "raw": "{\"category\": \"bottom\"}",
+      "args": {
+        "category": "bottom"
+      },
+      "seconds": 0.3224948000279255,
+      "output_tokens": 7,
+      "gen_seconds": 0.213242,
+      "load_seconds": 0.0135971,
+      "failures": []
+    },
+    {
+      "tool": "list_wardrobe_items",
+      "set": "hard",
+      "text": "list all the coats and jackets",
+      "raw": "{\"category\": \"outerwear\"}",
+      "args": {
+        "category": "outerwear"
+      },
+      "seconds": 0.35688940004911274,
+      "output_tokens": 8,
+      "gen_seconds": 0.249137,
+      "load_seconds": 0.0140523,
+      "failures": []
+    },
+    {
+      "tool": "list_wardrobe_items",
+      "set": "hard",
+      "text": "what accessories, like hats and stuff, do I have",
+      "raw": "{\"category\": \"accessory\"}",
+      "args": {
+        "category": "accessory"
+      },
+      "seconds": 0.3582759999553673,
+      "output_tokens": 8,
+      "gen_seconds": 0.248949,
+      "load_seconds": 0.0125068,
+      "failures": []
+    },
+    {
+      "tool": "list_wardrobe_items",
+      "set": "hard",
+      "text": "remind me what tops I own",
+      "raw": "{\"category\": \"top\"}",
+      "args": {
+        "category": "top"
+      },
+      "seconds": 0.3234902999829501,
+      "output_tokens": 7,
+      "gen_seconds": 0.213573,
+      "load_seconds": 0.0108557,
+      "failures": []
+    },
+    {
+      "tool": "update_wardrobe_item",
+      "set": "hard",
+      "text": "make my parka warmth 5 and formality 2",
+      "raw": "{\n  \"updates\": [\n    {\n      \"item\": \"parka\",\n      \"warmth_level\": 5,\n      \"formality\": 2\n    }\n  ]\n}",
+      "args": {
+        "updates": [
+          {
+            "item": "parka",
+            "warmth_level": 5,
+            "formality": 2
+          }
+        ]
+      },
+      "seconds": 1.8355614999891259,
+      "output_tokens": 39,
+      "gen_seconds": 1.36358,
+      "load_seconds": 0.0133032,
+      "failures": []
+    },
+    {
+      "tool": "update_wardrobe_item",
+      "set": "hard",
+      "text": "my hoodie is grey, not black",
+      "raw": "{\n  \"updates\": [\n    {\n      \"item\": \"hoodie\",\n      \"color\": \"grey\"\n    }\n  ]\n}",
+      "args": {
+        "updates": [
+          {
+            "item": "hoodie",
+            "color": "grey"
+          }
+        ]
+      },
+      "seconds": 1.12990090000676,
+      "output_tokens": 29,
+      "gen_seconds": 1.014856,
+      "load_seconds": 0.0116122,
+      "failures": []
+    },
+    {
+      "tool": "update_wardrobe_item",
+      "set": "hard",
+      "text": "set the gilet's warmth to three",
+      "raw": "{\n  \"updates\": [\n    {\n      \"item\": \"gilet\",\n      \"warmth_level\": 3\n    }\n  ]\n}",
+      "args": {
+        "updates": [
+          {
+            "item": "gilet",
+            "warmth_level": 3
+          }
+        ]
+      },
+      "seconds": 1.189756000007037,
+      "output_tokens": 31,
+      "gen_seconds": 1.077463,
+      "load_seconds": 0.0117742,
+      "failures": []
+    },
+    {
+      "tool": "update_wardrobe_item",
+      "set": "hard",
+      "text": "the anorak should count as outerwear and it's pretty warm, call it a 4",
+      "raw": "{\"updates\": [{\"item\": \"anorak\", \"category\": \"outerwear\", \"warmth_level\": 4}]}",
+      "args": {
+        "updates": [
+          {
+            "item": "anorak",
+            "category": "outerwear",
+            "warmth_level": 4
+          }
+        ]
+      },
+      "seconds": 1.129027099988889,
+      "output_tokens": 28,
+      "gen_seconds": 0.965858,
+      "load_seconds": 0.0130185,
+      "failures": []
+    },
+    {
+      "tool": "update_wardrobe_item",
+      "set": "hard",
+      "text": "rename item 7 to 'weekend flannel'",
+      "raw": "{\n  \"updates\": [\n    {\n      \"item\": \"7\",\n      \"new_name\": \"weekend flannel\"\n    }\n  ]\n}",
+      "args": {
+        "updates": [
+          {
+            "item": "7",
+            "new_name": "weekend flannel"
+          }
+        ]
+      },
+      "seconds": 1.225869000016246,
+      "output_tokens": 32,
+      "gen_seconds": 1.105801,
+      "load_seconds": 0.0155974,
+      "failures": []
+    },
+    {
+      "tool": "update_wardrobe_item",
+      "set": "hard",
+      "text": "actually my wool sweater is a base layer not a mid layer",
+      "raw": "{\"updates\": [{\"item\": \"wool sweater\", \"layer\": \"base\"}]}",
+      "args": {
+        "updates": [
+          {
+            "item": "wool sweater",
+            "layer": "base"
+          }
+        ]
+      },
+      "seconds": 0.8104249000316486,
+      "output_tokens": 19,
+      "gen_seconds": 0.650584,
+      "load_seconds": 0.0160004,
+      "failures": []
+    },
+    {
+      "tool": "update_wardrobe_item",
+      "set": "hard",
+      "text": "change the color on both my beanie and my gloves to black",
+      "raw": "{\n  \"updates\": [\n    {\n      \"item\": \"beanie\",\n      \"color\": \"black\"\n    },\n    {\n      \"item\": \"gloves\",\n      \"color\": \"black\"\n    }\n  ]\n}",
+      "args": {
+        "updates": [
+          {
+            "item": "beanie",
+            "color": "black"
+          },
+          {
+            "item": "gloves",
+            "color": "black"
+          }
+        ]
+      },
+      "seconds": 1.872155399993062,
+      "output_tokens": 49,
+      "gen_seconds": 1.718312,
+      "load_seconds": 0.0140177,
+      "failures": []
+    },
+    {
+      "tool": "update_wardrobe_item",
+      "set": "hard",
+      "text": "can you tag the oxford as wrinkle free",
+      "raw": "{\"updates\": [{\"item\": \"oxford\", \"tags\": \"wrinkle free\"}]}",
+      "args": {
+        "updates": [
+          {
+            "item": "oxford",
+            "tags": "wrinkle free"
+          }
+        ]
+      },
+      "seconds": 0.7963091999990866,
+      "output_tokens": 20,
+      "gen_seconds": 0.68139,
+      "load_seconds": 0.0135804,
+      "failures": []
+    },
+    {
+      "tool": "delete_wardrobe_item",
+      "set": "hard",
+      "text": "delete my red scarf, not the blue one",
+      "raw": "{\"items\": [\"red scarf\"]}",
+      "args": {
+        "items": [
+          "red scarf"
+        ]
+      },
+      "seconds": 0.438752599991858,
+      "output_tokens": 8,
+      "gen_seconds": 0.24851,
+      "load_seconds": 0.0131336,
+      "failures": []
+    },
+    {
+      "tool": "delete_wardrobe_item",
+      "set": "hard",
+      "text": "get rid of the anorak, the mules, and item 14",
+      "raw": "{\"items\": [\"anorak\", \"mules\", \"14\"]}",
+      "args": {
+        "items": [
+          "anorak",
+          "mules",
+          "14"
+        ]
+      },
+      "seconds": 0.7145980999921449,
+      "output_tokens": 17,
+      "gen_seconds": 0.562766,
+      "load_seconds": 0.0138117,
+      "failures": []
+    },
+    {
+      "tool": "delete_wardrobe_item",
+      "set": "hard",
+      "text": "i donated my old jorts",
+      "raw": "{\"items\": [\"old jorts\"]}",
+      "args": {
+        "items": [
+          "old jorts"
+        ]
+      },
+      "seconds": 0.39348640001844615,
+      "output_tokens": 9,
+      "gen_seconds": 0.286545,
+      "load_seconds": 0.0135071,
+      "failures": []
+    },
+    {
+      "tool": "delete_wardrobe_item",
+      "set": "hard",
+      "text": "the white sneakers got wrecked in the rain, toss them",
+      "raw": "{\"items\": [\"white sneakers\"]}",
+      "args": {
+        "items": [
+          "white sneakers"
+        ]
+      },
+      "seconds": 0.39438790001440793,
+      "output_tokens": 8,
+      "gen_seconds": 0.250012,
+      "load_seconds": 0.0136052,
+      "failures": []
+    },
+    {
+      "tool": "delete_wardrobe_item",
+      "set": "hard",
+      "text": "clear out my gym shorts and running shoes",
+      "raw": "{\"items\": [\"gym shorts\", \"running shoes\"]}",
+      "args": {
+        "items": [
+          "gym shorts",
+          "running shoes"
+        ]
+      },
+      "seconds": 0.5347766999620944,
+      "output_tokens": 13,
+      "gen_seconds": 0.424128,
+      "load_seconds": 0.0135486,
+      "failures": []
+    },
+    {
+      "tool": "delete_wardrobe_item",
+      "set": "hard",
+      "text": "take the beanie AND the gloves off my list",
+      "raw": "{\"items\": [\"beanie\", \"gloves\"]}",
+      "args": {
+        "items": [
+          "beanie",
+          "gloves"
+        ]
+      },
+      "seconds": 0.5334332000347786,
+      "output_tokens": 13,
+      "gen_seconds": 0.426473,
+      "load_seconds": 0.0104286,
+      "failures": []
+    },
+    {
+      "tool": "mark_worn",
+      "set": "hard",
+      "text": "today I'm in the navy peacoat, not the hoodie",
+      "raw": "{\"items\": [\"navy peacoat\"]}",
+      "args": {
+        "items": [
+          "navy peacoat"
+        ]
+      },
+      "seconds": 0.5574382999911904,
+      "output_tokens": 11,
+      "gen_seconds": 0.354819,
+      "load_seconds": 0.0138932,
+      "failures": []
+    },
+    {
+      "tool": "mark_worn",
+      "set": "hard",
+      "text": "had my olive anorak and grey jorts on all day",
+      "raw": "{\"items\": [\"olive anorak\", \"grey jorts\"]}",
+      "args": {
+        "items": [
+          "olive anorak",
+          "grey jorts"
+        ]
+      },
+      "seconds": 0.6821896999608725,
+      "output_tokens": 16,
+      "gen_seconds": 0.532121999,
+      "load_seconds": 0.0156688,
+      "failures": []
+    },
+    {
+      "tool": "mark_worn",
+      "set": "hard",
+      "text": "ok wearing it",
+      "raw": "{\"items\": [\"black henley\", \"khaki chinos\", \"white sneakers\"]}",
+      "args": {
+        "items": [
+          "black henley",
+          "khaki chinos",
+          "white sneakers"
+        ]
+      },
+      "seconds": 0.7319412999786437,
+      "output_tokens": 19,
+      "gen_seconds": 0.633966,
+      "load_seconds": 0.0128149,
+      "failures": []
+    },
+    {
+      "tool": "mark_worn",
+      "set": "hard",
+      "text": "rocking the mules today \ud83d\ude0e",
+      "raw": "{\"items\": [\"mules\"]}",
+      "args": {
+        "items": [
+          "mules"
+        ]
+      },
+      "seconds": 0.3570085999672301,
+      "output_tokens": 8,
+      "gen_seconds": 0.246664,
+      "load_seconds": 0.0121967,
+      "failures": []
+    },
+    {
+      "tool": "mark_worn",
+      "set": "hard",
+      "text": "I put on what you suggested",
+      "raw": "{\"items\": [\"that\"]}",
+      "args": {
+        "items": [
+          "that"
+        ]
+      },
+      "seconds": 0.3239458000170998,
+      "output_tokens": 7,
+      "gen_seconds": 0.214727,
+      "load_seconds": 0.01189,
+      "failures": []
+    },
+    {
+      "tool": "mark_worn",
+      "set": "hard",
+      "text": "wore my gilet, flannel, and boots to the hike",
+      "raw": "{\"items\": [\"gilet\", \"flannel\", \"boots\"]}",
+      "args": {
+        "items": [
+          "gilet",
+          "flannel",
+          "boots"
+        ]
+      },
+      "seconds": 0.6787543999962509,
+      "output_tokens": 16,
+      "gen_seconds": 0.528633,
+      "load_seconds": 0.0123666,
+      "failures": []
+    },
+    {
+      "tool": "add_reminder",
+      "set": "hard",
+      "text": "remind me to call mom at five thirty pm",
+      "raw": "{\"text\": \"call mom\", \"day\": \"\", \"time\": \"15:30\", \"in_minutes\": 0}",
+      "args": {
+        "text": "call mom",
+        "day": "",
+        "time": "15:30",
+        "in_minutes": 0
+      },
+      "seconds": 1.189746499992907,
+      "output_tokens": 29,
+      "gen_seconds": 1.057126,
+      "load_seconds": 0.0123814,
+      "failures": [
+        {
+          "category": "wrong_time",
+          "path": "args.remind_at",
+          "message": "15:30, wanted 17:30"
+        }
+      ]
+    },
+    {
+      "tool": "add_reminder",
+      "set": "hard",
+      "text": "remind me at 5, no wait, make it 6pm, to pick up the dry cleaning",
+      "raw": "{\"text\": \"pick up the dry cleaning\", \"day\": \"today\", \"time\": \"18:00\", \"in_minutes\": 0}",
+      "args": {
+        "text": "pick up the dry cleaning",
+        "day": "today",
+        "time": "18:00",
+        "in_minutes": 0
+      },
+      "seconds": 1.392327799985651,
+      "output_tokens": 34,
+      "gen_seconds": 1.235532,
+      "load_seconds": 0.0151859,
+      "failures": []
+    },
+    {
+      "tool": "add_reminder",
+      "set": "hard",
+      "text": "so I've got this dentist thing thursday at 4, make sure I don't forget",
+      "raw": "{\"text\": \"dentist thing\", \"day\": \"thursday\", \"time\": \"16:00\", \"in_minutes\": 0}",
+      "args": {
+        "text": "dentist thing",
+        "day": "thursday",
+        "time": "16:00",
+        "in_minutes": 0
+      },
+      "seconds": 1.3389165999833494,
+      "output_tokens": 33,
+      "gen_seconds": 1.174166,
+      "load_seconds": 0.0132888,
+      "failures": []
+    },
+    {
+      "tool": "add_reminder",
+      "set": "hard",
+      "text": "rmind me 2 pay rent tmrw at 9am",
+      "raw": "{\"text\": \"pay rent\", \"day\": \"tomorrow\", \"time\": \"09:00\", \"in_minutes\": 0}",
+      "args": {
+        "text": "pay rent",
+        "day": "tomorrow",
+        "time": "09:00",
+        "in_minutes": 0
+      },
+      "seconds": 1.296298100030981,
+      "output_tokens": 32,
+      "gen_seconds": 1.134657,
+      "load_seconds": 0.0135116,
+      "failures": []
+    },
+    {
+      "tool": "add_reminder",
+      "set": "hard",
+      "text": "in twenty minutes remind me to flip the laundry",
+      "raw": "{\"text\": \"flip the laundry\", \"day\": \"\", \"time\": \"10:20\", \"in_minutes\": 20}",
+      "args": {
+        "text": "flip the laundry",
+        "day": "",
+        "time": "10:20",
+        "in_minutes": 20
+      },
+      "seconds": 1.175468000001274,
+      "output_tokens": 31,
+      "gen_seconds": 1.062022999,
+      "load_seconds": 0.0130259,
+      "failures": []
+    },
+    {
+      "tool": "add_reminder",
+      "set": "hard",
+      "text": "my boss wants the slides by friday so remind me thursday evening to finish them",
+      "raw": "{\"text\": \"finish the slides\", \"day\": \"thursday\", \"time\": \"18:00\"}",
+      "args": {
+        "text": "finish the slides",
+        "day": "thursday",
+        "time": "18:00"
+      },
+      "seconds": 1.042474600020796,
+      "output_tokens": 26,
+      "gen_seconds": 0.89072,
+      "load_seconds": 0.0107206,
+      "failures": []
+    },
+    {
+      "tool": "add_reminder",
+      "set": "hard",
+      "text": "remind me to take the trash out at quarter past nine tonight",
+      "raw": "{\"text\": \"take the trash out\", \"day\": \"\", \"time\": \"21:15\", \"in_minutes\": 90}",
+      "args": {
+        "text": "take the trash out",
+        "day": "",
+        "time": "21:15",
+        "in_minutes": 90
+      },
+      "seconds": 1.2824300999636762,
+      "output_tokens": 32,
+      "gen_seconds": 1.136616,
+      "load_seconds": 0.0132194,
+      "failures": [
+        {
+          "category": "wrong_time",
+          "path": "args.remind_at",
+          "message": "11:30, wanted 21:15"
+        }
+      ]
+    },
+    {
+      "tool": "add_reminder",
+      "set": "hard",
+      "text": "REMIND ME TO CALL THE PLUMBER ON DECEMBER 9TH AT 1PM",
+      "raw": "{\"text\": \"call the plumber\", \"day\": \"date\", \"time\": \"13:00\", \"date\": \"12-09\", \"in_minutes\": 0}",
+      "args": {
+        "text": "call the plumber",
+        "day": "date",
+        "time": "13:00",
+        "date": "12-09",
+        "in_minutes": 0
+      },
+      "seconds": 1.672701200004667,
+      "output_tokens": 42,
+      "gen_seconds": 1.517163,
+      "load_seconds": 0.0116868,
+      "failures": []
+    },
+    {
+      "tool": "add_reminder",
+      "set": "hard",
+      "text": "can u remind me abt my flight on saturday at 6:45am",
+      "raw": "{\"text\": \"my flight\", \"day\": \"saturday\", \"time\": \"06:45\"}",
+      "args": {
+        "text": "my flight",
+        "day": "saturday",
+        "time": "06:45"
+      },
+      "seconds": 1.0067182999919169,
+      "output_tokens": 25,
+      "gen_seconds": 0.851058,
+      "load_seconds": 0.0122764,
+      "failures": []
+    },
+    {
+      "tool": "delete_reminder",
+      "set": "hard",
+      "text": "delete the reminder about the dentist, not the one about the vet",
+      "raw": "{\"reminders\": [\"dentist\"]}",
+      "args": {
+        "reminders": [
+          "dentist"
+        ]
+      },
+      "seconds": 0.4387255000183359,
+      "output_tokens": 9,
+      "gen_seconds": 0.280633,
+      "load_seconds": 0.0121014,
+      "failures": []
+    },
+    {
+      "tool": "delete_reminder",
+      "set": "hard",
+      "text": "uh can you get rid of reminders 4 and 11",
+      "raw": "{\"reminders\": [\"4\", \"11\"]}",
+      "args": {
+        "reminders": [
+          "4",
+          "11"
+        ]
+      },
+      "seconds": 0.5180015999940224,
+      "output_tokens": 12,
+      "gen_seconds": 0.380387,
+      "load_seconds": 0.0106112,
+      "failures": []
+    },
+    {
+      "tool": "delete_reminder",
+      "set": "hard",
+      "text": "I already called grandma so you can kill that reminder",
+      "raw": "{\"reminders\": [\"call grandma\"]}",
+      "args": {
+        "reminders": [
+          "call grandma"
+        ]
+      },
+      "seconds": 0.3868921000394039,
+      "output_tokens": 9,
+      "gen_seconds": 0.283441,
+      "load_seconds": 0.0128753,
+      "failures": []
+    },
+    {
+      "tool": "delete_reminder",
+      "set": "hard",
+      "text": "cancel the rent one and the one about my flight",
+      "raw": "{\"reminders\": [\"rent\", \"flight\"]}",
+      "args": {
+        "reminders": [
+          "rent",
+          "flight"
+        ]
+      },
+      "seconds": 0.4588971000048332,
+      "output_tokens": 11,
+      "gen_seconds": 0.352654,
+      "load_seconds": 0.0114173,
+      "failures": []
+    },
+    {
+      "tool": "delete_reminder",
+      "set": "hard",
+      "text": "the plumber one is done, delete it",
+      "raw": "{\"reminders\": [\"call the plumber\"]}",
+      "args": {
+        "reminders": [
+          "call the plumber"
+        ]
+      },
+      "seconds": 0.45770060003269464,
+      "output_tokens": 10,
+      "gen_seconds": 0.320058,
+      "load_seconds": 0.0105485,
+      "failures": []
+    },
+    {
+      "tool": "delete_reminder",
+      "set": "hard",
+      "text": "nvm the gym reminder lol",
+      "raw": "{\"reminders\": [\"gym\"]}",
+      "args": {
+        "reminders": [
+          "gym"
+        ]
+      },
+      "seconds": 0.3808665999677032,
+      "output_tokens": 9,
+      "gen_seconds": 0.277986,
+      "load_seconds": 0.0102291,
+      "failures": []
+    },
+    {
+      "tool": "suggest_fit",
+      "set": "hard",
+      "text": "what should I wear, it's supposed to rain all day",
+      "raw": "{\"occasion\": \"\"}",
+      "args": {
+        "occasion": ""
+      },
+      "seconds": 0.33298250002553686,
+      "output_tokens": 6,
+      "gen_seconds": 0.177162,
+      "load_seconds": 0.0145492,
+      "failures": []
+    },
+    {
+      "tool": "suggest_fit",
+      "set": "hard",
+      "text": "my cousin's quincea\u00f1era is saturday, what do I wear",
+      "raw": "{\"occasion\": \"cousin's quincea\u00f1era\"}",
+      "args": {
+        "occasion": "cousin's quincea\u00f1era"
+      },
+      "seconds": 0.6029075999977067,
+      "output_tokens": 14,
+      "gen_seconds": 0.452828,
+      "load_seconds": 0.0132359,
+      "failures": []
+    },
+    {
+      "tool": "suggest_fit",
+      "set": "hard",
+      "text": "black tie gala tonight, help",
+      "raw": "{\"occasion\": \"black tie gala\"}",
+      "args": {
+        "occasion": "black tie gala"
+      },
+      "seconds": 0.39142380002886057,
+      "output_tokens": 9,
+      "gen_seconds": 0.285274,
+      "load_seconds": 0.0112815,
+      "failures": []
+    },
+    {
+      "tool": "suggest_fit",
+      "set": "hard",
+      "text": "I just got back from the gym, what should I wear to dinner",
+      "raw": "{\"occasion\": \"dinner date\"}",
+      "args": {
+        "occasion": "dinner date"
+      },
+      "seconds": 0.42027590004727244,
+      "output_tokens": 9,
+      "gen_seconds": 0.282196,
+      "load_seconds": 0.0118189,
+      "failures": [
+        {
+          "category": "padded",
+          "path": "args.occasion",
+          "message": "'dinner date': ['date'] never said"
+        }
+      ]
+    },
+    {
+      "tool": "suggest_fit",
+      "set": "hard",
+      "text": "wat do i wear 2 my interview",
+      "raw": "{\"occasion\": \"job interview\"}",
+      "args": {
+        "occasion": "job interview"
+      },
+      "seconds": 0.35361259995261207,
+      "output_tokens": 8,
+      "gen_seconds": 0.247391,
+      "load_seconds": 0.012524,
+      "failures": [
+        {
+          "category": "padded",
+          "path": "args.occasion",
+          "message": "'job interview': ['job'] never said"
+        }
+      ]
+    },
+    {
+      "tool": "suggest_fit",
+      "set": "hard",
+      "text": "pick me something for hiking, it's like 40 out",
+      "raw": "{\"occasion\": \"hiking\"}",
+      "args": {
+        "occasion": "hiking"
+      },
+      "seconds": 0.40003219997743145,
+      "output_tokens": 8,
+      "gen_seconds": 0.247474,
+      "load_seconds": 0.0135803,
+      "failures": []
+    },
+    {
+      "tool": "add_wardrobe_item",
+      "set": "hard",
+      "text": "add an olive anorak",
+      "raw": "{\"items\": [{\"category\": \"outerwear\", \"name\": \"olive anorak\", \"color\": \"olive\", \"warmth_level\": 3, \"formality\": 1, \"tags\": \"\", \"layer\": \"\"}]}",
+      "args": {
+        "items": [
+          {
+            "category": "outerwear",
+            "name": "olive anorak",
+            "color": "olive",
+            "warmth_level": 3,
+            "formality": 1,
+            "tags": "",
+            "layer": ""
+          }
+        ]
+      },
+      "seconds": 1.9717520999838598,
+      "output_tokens": 53,
+      "gen_seconds": 1.846462,
+      "load_seconds": 0.0105233,
+      "failures": []
+    },
+    {
+      "tool": "add_wardrobe_item",
+      "set": "hard",
+      "text": "I picked up a cream gilet and some brown mules",
+      "raw": "{\n  \"items\": [\n    {\n      \"category\": \"outerwear\",\n      \"name\": \"cream gilet\",\n      \"color\": \"cream\",\n      \"warmth_level\": 2,\n      \"formality\": 3,\n      \"tags\": \"\",\n      \"layer\": \"mid\"\n    },\n    {\n      \"category\": \"shoes\",\n      \"name\": \"brown mules\",\n      \"color\": \"brown\",\n      \"warmth_level\": 0,\n      \"formality\": 2,\n      \"tags\": \"\"\n    }\n  ]\n}",
+      "args": {
+        "items": [
+          {
+            "category": "outerwear",
+            "name": "cream gilet",
+            "color": "cream",
+            "warmth_level": 2,
+            "formality": 3,
+            "tags": "",
+            "layer": "mid"
+          },
+          {
+            "category": "shoes",
+            "name": "brown mules",
+            "color": "brown",
+            "warmth_level": 0,
+            "formality": 2,
+            "tags": ""
+          }
+        ]
+      },
+      "seconds": 4.2980680000036955,
+      "output_tokens": 117,
+      "gen_seconds": 4.148122999,
+      "load_seconds": 0.0141287,
+      "failures": []
+    },
+    {
+      "tool": "add_wardrobe_item",
+      "set": "hard",
+      "text": "add a black hoodie, actually make it grey",
+      "raw": "{\n  \"items\": [\n    {\n      \"category\": \"top\",\n      \"name\": \"grey hoodie\",\n      \"color\": \"grey\",\n      \"warmth_level\": 3,\n      \"formality\": 1\n    }\n  ]\n}",
+      "args": {
+        "items": [
+          {
+            "category": "top",
+            "name": "grey hoodie",
+            "color": "grey",
+            "warmth_level": 3,
+            "formality": 1
+          }
+        ]
+      },
+      "seconds": 1.9612067000125535,
+      "output_tokens": 53,
+      "gen_seconds": 1.849835,
+      "load_seconds": 0.0139031,
+      "failures": []
+    },
+    {
+      "tool": "add_wardrobe_item",
+      "set": "hard",
+      "text": "add white jorts and a grey quarter-zip",
+      "raw": "{\n  \"items\": [\n    {\n      \"category\": \"bottom\",\n      \"name\": \"white jorts\",\n      \"color\": \"white\",\n      \"warmth_level\": 1,\n      \"formality\": 1\n    },\n    {\n      \"category\": \"top\",\n      \"name\": \"grey quarter-zip\",\n      \"color\": \"grey\",\n      \"warmth_level\": 2,\n      \"formality\": 2\n    }\n  ]\n}",
+      "args": {
+        "items": [
+          {
+            "category": "bottom",
+            "name": "white jorts",
+            "color": "white",
+            "warmth_level": 1,
+            "formality": 1
+          },
+          {
+            "category": "top",
+            "name": "grey quarter-zip",
+            "color": "grey",
+            "warmth_level": 2,
+            "formality": 2
+          }
+        ]
+      },
+      "seconds": 3.6159642999991775,
+      "output_tokens": 99,
+      "gen_seconds": 3.5022,
+      "load_seconds": 0.0123205,
+      "failures": []
+    },
+    {
+      "tool": "add_wardrobe_item",
+      "set": "hard",
+      "text": "add my new sneakers - they're the red ones with the white sole",
+      "raw": "{\n  \"items\": [\n    {\n      \"category\": \"shoes\",\n      \"name\": \"red sneakers\",\n      \"color\": \"red\",\n      \"tags\": \"white sole\"\n    }\n  ]\n}",
+      "args": {
+        "items": [
+          {
+            "category": "shoes",
+            "name": "red sneakers",
+            "color": "red",
+            "tags": "white sole"
+          }
+        ]
+      },
+      "seconds": 1.713904999953229,
+      "output_tokens": 45,
+      "gen_seconds": 1.562963,
+      "load_seconds": 0.0138677,
+      "failures": []
+    },
+    {
+      "tool": "add_wardrobe_item",
+      "set": "hard",
+      "text": "bought 2 flannel shirts, one green one blue",
+      "raw": "{\n  \"items\": [\n    {\n      \"category\": \"top\",\n      \"name\": \"green flannel shirt\",\n      \"color\": \"green\",\n      \"warmth_level\": 3,\n      \"formality\": 2\n    },\n    {\n      \"category\": \"top\",\n      \"name\": \"blue flannel shirt\",\n      \"color\": \"blue\",\n      \"warmth_level\": 3,\n      \"formality\": 2\n    }\n  ]\n}",
+      "args": {
+        "items": [
+          {
+            "category": "top",
+            "name": "green flannel shirt",
+            "color": "green",
+            "warmth_level": 3,
+            "formality": 2
+          },
+          {
+            "category": "top",
+            "name": "blue flannel shirt",
+            "color": "blue",
+            "warmth_level": 3,
+            "formality": 2
+          }
+        ]
+      },
+      "seconds": 3.6723558999947272,
+      "output_tokens": 100,
+      "gen_seconds": 3.524293,
+      "load_seconds": 0.0134424,
+      "failures": []
+    },
+    {
+      "tool": "add_wardrobe_item",
+      "set": "hard",
+      "text": "my sister gave me a beige cashmere scarf, save it",
+      "raw": "{\n  \"items\": [\n    {\n      \"category\": \"accessory\",\n      \"name\": \"beige cashmere scarf\",\n      \"color\": \"beige\",\n      \"tags\": \"cashmere\"\n    }\n  ]\n}",
+      "args": {
+        "items": [
+          {
+            "category": "accessory",
+            "name": "beige cashmere scarf",
+            "color": "beige",
+            "tags": "cashmere"
+          }
+        ]
+      },
+      "seconds": 1.8532396999653429,
+      "output_tokens": 49,
+      "gen_seconds": 1.703067,
+      "load_seconds": 0.0133811,
+      "failures": []
+    },
+    {
+      "tool": "list_wardrobe_items",
+      "set": "hard",
+      "text": "wats in my closet",
+      "raw": "{\"category\": \"all\"}",
+      "args": {
+        "category": "all"
+      },
+      "seconds": 0.3263491000398062,
+      "output_tokens": 7,
+      "gen_seconds": 0.211952,
+      "load_seconds": 0.010735,
+      "failures": []
+    },
+    {
+      "tool": "list_wardrobe_items",
+      "set": "hard",
+      "text": "everything please, list my whole wardrobe",
+      "raw": "{\"category\": \"all\"}",
+      "args": {
+        "category": "all"
+      },
+      "seconds": 0.31541270000161603,
+      "output_tokens": 7,
+      "gen_seconds": 0.210246,
+      "load_seconds": 0.0118991,
+      "failures": []
+    },
+    {
+      "tool": "list_wardrobe_items",
+      "set": "hard",
+      "text": "show me my kicks",
+      "raw": "{\"category\": \"shoes\"}",
+      "args": {
+        "category": "shoes"
+      },
+      "seconds": 0.3566901999874972,
+      "output_tokens": 8,
+      "gen_seconds": 0.244521,
+      "load_seconds": 0.0134628,
+      "failures": []
+    },
+    {
+      "tool": "list_wardrobe_items",
+      "set": "hard",
+      "text": "what do I have for my legs",
+      "raw": "{\"category\": \"bottom\"}",
+      "args": {
+        "category": "bottom"
+      },
+      "seconds": 0.3264301000162959,
+      "output_tokens": 7,
+      "gen_seconds": 0.215243,
+      "load_seconds": 0.0150529,
+      "failures": []
+    },
+    {
+      "tool": "list_wardrobe_items",
+      "set": "hard",
+      "text": "list all the coats and jackets",
+      "raw": "{\"category\": \"outerwear\"}",
+      "args": {
+        "category": "outerwear"
+      },
+      "seconds": 0.3617071000044234,
+      "output_tokens": 8,
+      "gen_seconds": 0.248743,
+      "load_seconds": 0.0146258,
+      "failures": []
+    },
+    {
+      "tool": "list_wardrobe_items",
+      "set": "hard",
+      "text": "what accessories, like hats and stuff, do I have",
+      "raw": "{\"category\": \"accessory\"}",
+      "args": {
+        "category": "accessory"
+      },
+      "seconds": 0.3676768000004813,
+      "output_tokens": 8,
+      "gen_seconds": 0.25014,
+      "load_seconds": 0.0118243,
+      "failures": []
+    },
+    {
+      "tool": "list_wardrobe_items",
+      "set": "hard",
+      "text": "remind me what tops I own",
+      "raw": "{\"category\": \"top\"}",
+      "args": {
+        "category": "top"
+      },
+      "seconds": 0.32215439999708906,
+      "output_tokens": 7,
+      "gen_seconds": 0.21305,
+      "load_seconds": 0.013128,
+      "failures": []
+    },
+    {
+      "tool": "update_wardrobe_item",
+      "set": "hard",
+      "text": "make my parka warmth 5 and formality 2",
+      "raw": "{\n  \"updates\": [\n    {\n      \"item\": \"parka\",\n      \"warmth_level\": 5,\n      \"formality\": 2\n    }\n  ]\n}",
+      "args": {
+        "updates": [
+          {
+            "item": "parka",
+            "warmth_level": 5,
+            "formality": 2
+          }
+        ]
+      },
+      "seconds": 1.515266700007487,
+      "output_tokens": 39,
+      "gen_seconds": 1.350259,
+      "load_seconds": 0.0129537,
+      "failures": []
+    },
+    {
+      "tool": "update_wardrobe_item",
+      "set": "hard",
+      "text": "my hoodie is grey, not black",
+      "raw": "{\n  \"updates\": [\n    {\n      \"item\": \"grey hoodie\",\n      \"color\": \"grey\"\n    }\n  ]\n}",
+      "args": {
+        "updates": [
+          {
+            "item": "grey hoodie",
+            "color": "grey"
+          }
+        ]
+      },
+      "seconds": 1.1099617999861948,
+      "output_tokens": 29,
+      "gen_seconds": 1.002109,
+      "load_seconds": 0.0101472,
+      "failures": []
+    },
+    {
+      "tool": "update_wardrobe_item",
+      "set": "hard",
+      "text": "set the gilet's warmth to three",
+      "raw": "{\n  \"updates\": [\n    {\n      \"item\": \"gilet\",\n      \"warmth_level\": 3\n    }\n  ]\n}",
+      "args": {
+        "updates": [
+          {
+            "item": "gilet",
+            "warmth_level": 3
+          }
+        ]
+      },
+      "seconds": 1.1936764999991283,
+      "output_tokens": 31,
+      "gen_seconds": 1.07344,
+      "load_seconds": 0.0145295,
+      "failures": []
+    },
+    {
+      "tool": "update_wardrobe_item",
+      "set": "hard",
+      "text": "the anorak should count as outerwear and it's pretty warm, call it a 4",
+      "raw": "{\"updates\": [{\"item\": \"anorak\", \"category\": \"outerwear\", \"warmth_level\": 4}]}",
+      "args": {
+        "updates": [
+          {
+            "item": "anorak",
+            "category": "outerwear",
+            "warmth_level": 4
+          }
+        ]
+      },
+      "seconds": 1.1308745999704115,
+      "output_tokens": 28,
+      "gen_seconds": 0.967919,
+      "load_seconds": 0.0149495,
+      "failures": []
+    },
+    {
+      "tool": "update_wardrobe_item",
+      "set": "hard",
+      "text": "rename item 7 to 'weekend flannel'",
+      "raw": "{\n  \"updates\": [\n    {\n      \"item\": \"7\",\n      \"new_name\": \"weekend flannel\"\n    }\n  ]\n}",
+      "args": {
+        "updates": [
+          {
+            "item": "7",
+            "new_name": "weekend flannel"
+          }
+        ]
+      },
+      "seconds": 1.2673592999926768,
+      "output_tokens": 32,
+      "gen_seconds": 1.150117,
+      "load_seconds": 0.0145435,
+      "failures": []
+    },
+    {
+      "tool": "update_wardrobe_item",
+      "set": "hard",
+      "text": "actually my wool sweater is a base layer not a mid layer",
+      "raw": "{\"updates\": [{\"item\": \"wool sweater\", \"layer\": \"base\"}]}",
+      "args": {
+        "updates": [
+          {
+            "item": "wool sweater",
+            "layer": "base"
+          }
+        ]
+      },
+      "seconds": 0.8013601999846287,
+      "output_tokens": 19,
+      "gen_seconds": 0.642175,
+      "load_seconds": 0.016731,
+      "failures": []
+    },
+    {
+      "tool": "update_wardrobe_item",
+      "set": "hard",
+      "text": "change the color on both my beanie and my gloves to black",
+      "raw": "{\n  \"updates\": [\n    {\n      \"item\": \"beanie\",\n      \"color\": \"black\"\n    },\n    {\n      \"item\": \"gloves\",\n      \"color\": \"black\"\n    }\n  ]\n}",
+      "args": {
+        "updates": [
+          {
+            "item": "beanie",
+            "color": "black"
+          },
+          {
+            "item": "gloves",
+            "color": "black"
+          }
+        ]
+      },
+      "seconds": 1.876039299997501,
+      "output_tokens": 49,
+      "gen_seconds": 1.721645,
+      "load_seconds": 0.0125688,
+      "failures": []
+    },
+    {
+      "tool": "update_wardrobe_item",
+      "set": "hard",
+      "text": "can you tag the oxford as wrinkle free",
+      "raw": "{\"updates\": [{\"item\": \"oxford\", \"tags\": \"wrinkle free\"}]}",
+      "args": {
+        "updates": [
+          {
+            "item": "oxford",
+            "tags": "wrinkle free"
+          }
+        ]
+      },
+      "seconds": 0.8569610000122339,
+      "output_tokens": 20,
+      "gen_seconds": 0.736133,
+      "load_seconds": 0.0128827,
+      "failures": []
+    },
+    {
+      "tool": "delete_wardrobe_item",
+      "set": "hard",
+      "text": "delete my red scarf, not the blue one",
+      "raw": "{\"items\": [\"red scarf\"]}",
+      "args": {
+        "items": [
+          "red scarf"
+        ]
+      },
+      "seconds": 0.37504559999797493,
+      "output_tokens": 8,
+      "gen_seconds": 0.249608,
+      "load_seconds": 0.0133601,
+      "failures": []
+    },
+    {
+      "tool": "delete_wardrobe_item",
+      "set": "hard",
+      "text": "get rid of the anorak, the mules, and item 14",
+      "raw": "{\"items\": [\"anorak\", \"mules\", \"14\"]}",
+      "args": {
+        "items": [
+          "anorak",
+          "mules",
+          "14"
+        ]
+      },
+      "seconds": 0.7153035999508575,
+      "output_tokens": 17,
+      "gen_seconds": 0.564699,
+      "load_seconds": 0.0134321,
+      "failures": []
+    },
+    {
+      "tool": "delete_wardrobe_item",
+      "set": "hard",
+      "text": "i donated my old jorts",
+      "raw": "{\"items\": [\"old jorts\"]}",
+      "args": {
+        "items": [
+          "old jorts"
+        ]
+      },
+      "seconds": 0.3914921999676153,
+      "output_tokens": 9,
+      "gen_seconds": 0.282789,
+      "load_seconds": 0.0141258,
+      "failures": []
+    },
+    {
+      "tool": "delete_wardrobe_item",
+      "set": "hard",
+      "text": "the white sneakers got wrecked in the rain, toss them",
+      "raw": "{\"items\": [\"white sneakers\"]}",
+      "args": {
+        "items": [
+          "white sneakers"
+        ]
+      },
+      "seconds": 0.40021330001764,
+      "output_tokens": 8,
+      "gen_seconds": 0.252952,
+      "load_seconds": 0.0147916,
+      "failures": []
+    },
+    {
+      "tool": "delete_wardrobe_item",
+      "set": "hard",
+      "text": "clear out my gym shorts and running shoes",
+      "raw": "{\"items\": [\"gym shorts\", \"running shoes\"]}",
+      "args": {
+        "items": [
+          "gym shorts",
+          "running shoes"
+        ]
+      },
+      "seconds": 0.5384982999530621,
+      "output_tokens": 13,
+      "gen_seconds": 0.424972,
+      "load_seconds": 0.0146204,
+      "failures": []
+    },
+    {
+      "tool": "delete_wardrobe_item",
+      "set": "hard",
+      "text": "take the beanie AND the gloves off my list",
+      "raw": "{\"items\": [\"beanie\", \"gloves\"]}",
+      "args": {
+        "items": [
+          "beanie",
+          "gloves"
+        ]
+      },
+      "seconds": 0.5399502000072971,
+      "output_tokens": 13,
+      "gen_seconds": 0.427312,
+      "load_seconds": 0.0197339,
+      "failures": []
+    },
+    {
+      "tool": "mark_worn",
+      "set": "hard",
+      "text": "today I'm in the navy peacoat, not the hoodie",
+      "raw": "{\"items\": [\"navy peacoat\"]}",
+      "args": {
+        "items": [
+          "navy peacoat"
+        ]
+      },
+      "seconds": 0.50777000002563,
+      "output_tokens": 11,
+      "gen_seconds": 0.354904,
+      "load_seconds": 0.0111193,
+      "failures": []
+    },
+    {
+      "tool": "mark_worn",
+      "set": "hard",
+      "text": "had my olive anorak and grey jorts on all day",
+      "raw": "{\"items\": [\"olive anorak\", \"grey jorts\"]}",
+      "args": {
+        "items": [
+          "olive anorak",
+          "grey jorts"
+        ]
+      },
+      "seconds": 0.6743673000019044,
+      "output_tokens": 16,
+      "gen_seconds": 0.527119,
+      "load_seconds": 0.0139251,
+      "failures": []
+    },
+    {
+      "tool": "mark_worn",
+      "set": "hard",
+      "text": "ok wearing it",
+      "raw": "{\"items\": [\"black henley\", \"khaki chinos\", \"white sneakers\"]}",
+      "args": {
+        "items": [
+          "black henley",
+          "khaki chinos",
+          "white sneakers"
+        ]
+      },
+      "seconds": 0.7408526000217535,
+      "output_tokens": 19,
+      "gen_seconds": 0.63545,
+      "load_seconds": 0.0158148,
+      "failures": []
+    },
+    {
+      "tool": "mark_worn",
+      "set": "hard",
+      "text": "rocking the mules today \ud83d\ude0e",
+      "raw": "{\"items\": [\"mules\"]}",
+      "args": {
+        "items": [
+          "mules"
+        ]
+      },
+      "seconds": 0.3650519999791868,
+      "output_tokens": 8,
+      "gen_seconds": 0.250079,
+      "load_seconds": 0.014128,
+      "failures": []
+    },
+    {
+      "tool": "mark_worn",
+      "set": "hard",
+      "text": "I put on what you suggested",
+      "raw": "{\"items\": [\"that\"]}",
+      "args": {
+        "items": [
+          "that"
+        ]
+      },
+      "seconds": 0.3297166000120342,
+      "output_tokens": 7,
+      "gen_seconds": 0.214591,
+      "load_seconds": 0.0154832,
+      "failures": []
+    },
+    {
+      "tool": "mark_worn",
+      "set": "hard",
+      "text": "wore my gilet, flannel, and boots to the hike",
+      "raw": "{\"items\": [\"gilet\", \"flannel\", \"boots\"]}",
+      "args": {
+        "items": [
+          "gilet",
+          "flannel",
+          "boots"
+        ]
+      },
+      "seconds": 0.6804963999893516,
+      "output_tokens": 16,
+      "gen_seconds": 0.530034,
+      "load_seconds": 0.0127823,
+      "failures": []
+    },
+    {
+      "tool": "add_reminder",
+      "set": "hard",
+      "text": "remind me to call mom at five thirty pm",
+      "raw": "{\"text\": \"call mom\", \"day\": \"\", \"time\": \"15:30\", \"in_minutes\": 0}",
+      "args": {
+        "text": "call mom",
+        "day": "",
+        "time": "15:30",
+        "in_minutes": 0
+      },
+      "seconds": 1.1988533000112511,
+      "output_tokens": 29,
+      "gen_seconds": 1.065487,
+      "load_seconds": 0.0146097,
+      "failures": [
+        {
+          "category": "wrong_time",
+          "path": "args.remind_at",
+          "message": "15:30, wanted 17:30"
+        }
+      ]
+    },
+    {
+      "tool": "add_reminder",
+      "set": "hard",
+      "text": "remind me at 5, no wait, make it 6pm, to pick up the dry cleaning",
+      "raw": "{\"text\": \"pick up the dry cleaning\", \"day\": \"today\", \"time\": \"18:00\", \"in_minutes\": 0}",
+      "args": {
+        "text": "pick up the dry cleaning",
+        "day": "today",
+        "time": "18:00",
+        "in_minutes": 0
+      },
+      "seconds": 1.396966699976474,
+      "output_tokens": 34,
+      "gen_seconds": 1.232008,
+      "load_seconds": 0.0154795,
+      "failures": []
+    },
+    {
+      "tool": "add_reminder",
+      "set": "hard",
+      "text": "so I've got this dentist thing thursday at 4, make sure I don't forget",
+      "raw": "{\"text\": \"dentist thing\", \"day\": \"thursday\", \"time\": \"16:00\", \"in_minutes\": 0}",
+      "args": {
+        "text": "dentist thing",
+        "day": "thursday",
+        "time": "16:00",
+        "in_minutes": 0
+      },
+      "seconds": 1.3411085999687202,
+      "output_tokens": 33,
+      "gen_seconds": 1.179553,
+      "load_seconds": 0.0135032,
+      "failures": []
+    },
+    {
+      "tool": "add_reminder",
+      "set": "hard",
+      "text": "rmind me 2 pay rent tmrw at 9am",
+      "raw": "{\"text\": \"pay rent\", \"day\": \"tomorrow\", \"time\": \"09:00\", \"in_minutes\": 0}",
+      "args": {
+        "text": "pay rent",
+        "day": "tomorrow",
+        "time": "09:00",
+        "in_minutes": 0
+      },
+      "seconds": 1.3194255999987945,
+      "output_tokens": 32,
+      "gen_seconds": 1.162882,
+      "load_seconds": 0.0122881,
+      "failures": []
+    },
+    {
+      "tool": "add_reminder",
+      "set": "hard",
+      "text": "in twenty minutes remind me to flip the laundry",
+      "raw": "{\"text\": \"flip the laundry\", \"day\": \"\", \"time\": \"10:20\", \"in_minutes\": 20}",
+      "args": {
+        "text": "flip the laundry",
+        "day": "",
+        "time": "10:20",
+        "in_minutes": 20
+      },
+      "seconds": 1.1874832999892533,
+      "output_tokens": 31,
+      "gen_seconds": 1.073144,
+      "load_seconds": 0.012396,
+      "failures": []
+    },
+    {
+      "tool": "add_reminder",
+      "set": "hard",
+      "text": "my boss wants the slides by friday so remind me thursday evening to finish them",
+      "raw": "{\"text\": \"finish the slides\", \"day\": \"thursday\", \"time\": \"18:00\"}",
+      "args": {
+        "text": "finish the slides",
+        "day": "thursday",
+        "time": "18:00"
+      },
+      "seconds": 1.0523453000350855,
+      "output_tokens": 26,
+      "gen_seconds": 0.89856,
+      "load_seconds": 0.0131894,
+      "failures": []
+    },
+    {
+      "tool": "add_reminder",
+      "set": "hard",
+      "text": "remind me to take the trash out at quarter past nine tonight",
+      "raw": "{\"text\": \"take the trash out\", \"day\": \"today\", \"time\": \"21:15\", \"in_minutes\": 90}",
+      "args": {
+        "text": "take the trash out",
+        "day": "today",
+        "time": "21:15",
+        "in_minutes": 90
+      },
+      "seconds": 1.396370900038164,
+      "output_tokens": 34,
+      "gen_seconds": 1.243241,
+      "load_seconds": 0.0100024,
+      "failures": [
+        {
+          "category": "wrong_time",
+          "path": "args.remind_at",
+          "message": "11:30, wanted 21:15"
+        }
+      ]
+    },
+    {
+      "tool": "add_reminder",
+      "set": "hard",
+      "text": "REMIND ME TO CALL THE PLUMBER ON DECEMBER 9TH AT 1PM",
+      "raw": "{\"text\": \"call the plumber\", \"day\": \"date\", \"time\": \"13:00\", \"date\": \"12-09\", \"in_minutes\": 0}",
+      "args": {
+        "text": "call the plumber",
+        "day": "date",
+        "time": "13:00",
+        "date": "12-09",
+        "in_minutes": 0
+      },
+      "seconds": 1.6654220000491478,
+      "output_tokens": 42,
+      "gen_seconds": 1.506436,
+      "load_seconds": 0.013955,
+      "failures": []
+    },
+    {
+      "tool": "add_reminder",
+      "set": "hard",
+      "text": "can u remind me abt my flight on saturday at 6:45am",
+      "raw": "{\"text\": \"my flight\", \"day\": \"saturday\", \"time\": \"06:45\"}",
+      "args": {
+        "text": "my flight",
+        "day": "saturday",
+        "time": "06:45"
+      },
+      "seconds": 1.0042176999850199,
+      "output_tokens": 25,
+      "gen_seconds": 0.854537,
+      "load_seconds": 0.0133168,
+      "failures": []
+    },
+    {
+      "tool": "delete_reminder",
+      "set": "hard",
+      "text": "delete the reminder about the dentist, not the one about the vet",
+      "raw": "{\"reminders\": [\"dentist\"]}",
+      "args": {
+        "reminders": [
+          "dentist"
+        ]
+      },
+      "seconds": 0.45682309998665005,
+      "output_tokens": 9,
+      "gen_seconds": 0.284038,
+      "load_seconds": 0.0136033,
+      "failures": []
+    },
+    {
+      "tool": "delete_reminder",
+      "set": "hard",
+      "text": "uh can you get rid of reminders 4 and 11",
+      "raw": "{\"reminders\": [\"4\", \"11\"]}",
+      "args": {
+        "reminders": [
+          "4",
+          "11"
+        ]
+      },
+      "seconds": 0.5362846999778412,
+      "output_tokens": 12,
+      "gen_seconds": 0.386742,
+      "load_seconds": 0.01241,
+      "failures": []
+    },
+    {
+      "tool": "delete_reminder",
+      "set": "hard",
+      "text": "I already called grandma so you can kill that reminder",
+      "raw": "{\"reminders\": [\"call grandma\"]}",
+      "args": {
+        "reminders": [
+          "call grandma"
+        ]
+      },
+      "seconds": 0.3969842999940738,
+      "output_tokens": 9,
+      "gen_seconds": 0.281767,
+      "load_seconds": 0.0143265,
+      "failures": []
+    },
+    {
+      "tool": "delete_reminder",
+      "set": "hard",
+      "text": "cancel the rent one and the one about my flight",
+      "raw": "{\"reminders\": [\"rent\", \"flight\"]}",
+      "args": {
+        "reminders": [
+          "rent",
+          "flight"
+        ]
+      },
+      "seconds": 0.4605739999678917,
+      "output_tokens": 11,
+      "gen_seconds": 0.351507,
+      "load_seconds": 0.0118157,
+      "failures": []
+    },
+    {
+      "tool": "delete_reminder",
+      "set": "hard",
+      "text": "the plumber one is done, delete it",
+      "raw": "{\"reminders\": [\"call the plumber\"]}",
+      "args": {
+        "reminders": [
+          "call the plumber"
+        ]
+      },
+      "seconds": 0.4555388000444509,
+      "output_tokens": 10,
+      "gen_seconds": 0.319476,
+      "load_seconds": 0.0144369,
+      "failures": []
+    },
+    {
+      "tool": "delete_reminder",
+      "set": "hard",
+      "text": "nvm the gym reminder lol",
+      "raw": "{\"reminders\": [\"gym\"]}",
+      "args": {
+        "reminders": [
+          "gym"
+        ]
+      },
+      "seconds": 0.39054809999652207,
+      "output_tokens": 9,
+      "gen_seconds": 0.283793,
+      "load_seconds": 0.0118452,
+      "failures": []
+    },
+    {
+      "tool": "suggest_fit",
+      "set": "hard",
+      "text": "what should I wear, it's supposed to rain all day",
+      "raw": "{\"occasion\": \"\"}",
+      "args": {
+        "occasion": ""
+      },
+      "seconds": 0.333872799994424,
+      "output_tokens": 6,
+      "gen_seconds": 0.177602,
+      "load_seconds": 0.0138266,
+      "failures": []
+    },
+    {
+      "tool": "suggest_fit",
+      "set": "hard",
+      "text": "my cousin's quincea\u00f1era is saturday, what do I wear",
+      "raw": "{\"occasion\": \"cousin's quincea\u00f1era\"}",
+      "args": {
+        "occasion": "cousin's quincea\u00f1era"
+      },
+      "seconds": 0.6063384999870323,
+      "output_tokens": 14,
+      "gen_seconds": 0.45304,
+      "load_seconds": 0.0130055,
+      "failures": []
+    },
+    {
+      "tool": "suggest_fit",
+      "set": "hard",
+      "text": "black tie gala tonight, help",
+      "raw": "{\"occasion\": \"black tie gala\"}",
+      "args": {
+        "occasion": "black tie gala"
+      },
+      "seconds": 0.38544580002781004,
+      "output_tokens": 9,
+      "gen_seconds": 0.280433,
+      "load_seconds": 0.0133697,
+      "failures": []
+    },
+    {
+      "tool": "suggest_fit",
+      "set": "hard",
+      "text": "I just got back from the gym, what should I wear to dinner",
+      "raw": "{\"occasion\": \"dinner date\"}",
+      "args": {
+        "occasion": "dinner date"
+      },
+      "seconds": 0.4187627999926917,
+      "output_tokens": 9,
+      "gen_seconds": 0.279949,
+      "load_seconds": 0.0129438,
+      "failures": [
+        {
+          "category": "padded",
+          "path": "args.occasion",
+          "message": "'dinner date': ['date'] never said"
+        }
+      ]
+    },
+    {
+      "tool": "suggest_fit",
+      "set": "hard",
+      "text": "wat do i wear 2 my interview",
+      "raw": "{\"occasion\": \"job interview\"}",
+      "args": {
+        "occasion": "job interview"
+      },
+      "seconds": 0.35463880002498627,
+      "output_tokens": 8,
+      "gen_seconds": 0.248137,
+      "load_seconds": 0.0124909,
+      "failures": [
+        {
+          "category": "padded",
+          "path": "args.occasion",
+          "message": "'job interview': ['job'] never said"
+        }
+      ]
+    },
+    {
+      "tool": "suggest_fit",
+      "set": "hard",
+      "text": "pick me something for hiking, it's like 40 out",
+      "raw": "{\"occasion\": \"hiking\"}",
+      "args": {
+        "occasion": "hiking"
+      },
+      "seconds": 0.400638599996455,
+      "output_tokens": 8,
+      "gen_seconds": 0.25208,
+      "load_seconds": 0.0157738,
+      "failures": []
+    },
+    {
+      "tool": "add_wardrobe_item",
+      "set": "hard",
+      "text": "add an olive anorak",
+      "raw": "{\n  \"items\": [\n    {\n      \"category\": \"outerwear\",\n      \"name\": \"olive anorak\",\n      \"color\": \"olive\",\n      \"warmth_level\": 3,\n      \"formality\": 1\n    }\n  ]\n}",
+      "args": {
+        "items": [
+          {
+            "category": "outerwear",
+            "name": "olive anorak",
+            "color": "olive",
+            "warmth_level": 3,
+            "formality": 1
+          }
+        ]
+      },
+      "seconds": 2.173628800024744,
+      "output_tokens": 58,
+      "gen_seconds": 2.041276,
+      "load_seconds": 0.0130821,
+      "failures": []
+    },
+    {
+      "tool": "add_wardrobe_item",
+      "set": "hard",
+      "text": "I picked up a cream gilet and some brown mules",
+      "raw": "{\n  \"items\": [\n    {\n      \"category\": \"outerwear\",\n      \"name\": \"cream gilet\",\n      \"color\": \"cream\",\n      \"warmth_level\": 2,\n      \"formality\": 3,\n      \"tags\": \"\",\n      \"layer\": \"mid\"\n    },\n    {\n      \"category\": \"shoes\",\n      \"name\": \"brown mules\",\n      \"color\": \"brown\",\n      \"warmth_level\": 0,\n      \"formality\": 2,\n      \"tags\": \"\"\n    }\n  ]\n}",
+      "args": {
+        "items": [
+          {
+            "category": "outerwear",
+            "name": "cream gilet",
+            "color": "cream",
+            "warmth_level": 2,
+            "formality": 3,
+            "tags": "",
+            "layer": "mid"
+          },
+          {
+            "category": "shoes",
+            "name": "brown mules",
+            "color": "brown",
+            "warmth_level": 0,
+            "formality": 2,
+            "tags": ""
+          }
+        ]
+      },
+      "seconds": 4.295845900021959,
+      "output_tokens": 117,
+      "gen_seconds": 4.147841999,
+      "load_seconds": 0.0127372,
+      "failures": []
+    },
+    {
+      "tool": "add_wardrobe_item",
+      "set": "hard",
+      "text": "add a black hoodie, actually make it grey",
+      "raw": "{\"items\": [{\"category\": \"top\", \"name\": \"grey hoodie\", \"color\": \"grey\", \"warmth_level\": 3, \"formality\": 1, \"tags\": \"\", \"layer\": \"\"}]}",
+      "args": {
+        "items": [
+          {
+            "category": "top",
+            "name": "grey hoodie",
+            "color": "grey",
+            "warmth_level": 3,
+            "formality": 1,
+            "tags": "",
+            "layer": ""
+          }
+        ]
+      },
+      "seconds": 1.7896864000358619,
+      "output_tokens": 48,
+      "gen_seconds": 1.67078,
+      "load_seconds": 0.015723,
+      "failures": []
+    },
+    {
+      "tool": "add_wardrobe_item",
+      "set": "hard",
+      "text": "add white jorts and a grey quarter-zip",
+      "raw": "{\n  \"items\": [\n    {\n      \"category\": \"bottom\",\n      \"name\": \"white jorts\",\n      \"color\": \"white\",\n      \"warmth_level\": 1,\n      \"formality\": 1\n    },\n    {\n      \"category\": \"top\",\n      \"name\": \"grey quarter-zip\",\n      \"color\": \"grey\",\n      \"warmth_level\": 1,\n      \"formality\": 1\n    }\n  ]\n}",
+      "args": {
+        "items": [
+          {
+            "category": "bottom",
+            "name": "white jorts",
+            "color": "white",
+            "warmth_level": 1,
+            "formality": 1
+          },
+          {
+            "category": "top",
+            "name": "grey quarter-zip",
+            "color": "grey",
+            "warmth_level": 1,
+            "formality": 1
+          }
+        ]
+      },
+      "seconds": 3.621793600032106,
+      "output_tokens": 99,
+      "gen_seconds": 3.504296,
+      "load_seconds": 0.0124642,
+      "failures": []
+    },
+    {
+      "tool": "add_wardrobe_item",
+      "set": "hard",
+      "text": "add my new sneakers - they're the red ones with the white sole",
+      "raw": "{\"items\": [{\"category\": \"shoes\", \"name\": \"red sneakers with white sole\", \"color\": \"red\", \"tags\": \"sneakers\"}]}",
+      "args": {
+        "items": [
+          {
+            "category": "shoes",
+            "name": "red sneakers with white sole",
+            "color": "red",
+            "tags": "sneakers"
+          }
+        ]
+      },
+      "seconds": 1.397129099990707,
+      "output_tokens": 36,
+      "gen_seconds": 1.243579,
+      "load_seconds": 0.0131191,
+      "failures": []
+    },
+    {
+      "tool": "add_wardrobe_item",
+      "set": "hard",
+      "text": "bought 2 flannel shirts, one green one blue",
+      "raw": "{\n  \"items\": [\n    {\n      \"category\": \"top\",\n      \"name\": \"green flannel shirt\",\n      \"color\": \"green\",\n      \"warmth_level\": 3,\n      \"formality\": 2,\n      \"tags\": \"cotton, loose fit\"\n    },\n    {\n      \"category\": \"top\",\n      \"name\": \"blue flannel shirt\",\n      \"color\": \"blue\",\n      \"warmth_level\": 3,\n      \"formality\": 2,\n      \"tags\": \"cotton, loose fit\"\n    }\n  ]\n}",
+      "args": {
+        "items": [
+          {
+            "category": "top",
+            "name": "green flannel shirt",
+            "color": "green",
+            "warmth_level": 3,
+            "formality": 2,
+            "tags": "cotton, loose fit"
+          },
+          {
+            "category": "top",
+            "name": "blue flannel shirt",
+            "color": "blue",
+            "warmth_level": 3,
+            "formality": 2,
+            "tags": "cotton, loose fit"
+          }
+        ]
+      },
+      "seconds": 4.470103800005745,
+      "output_tokens": 122,
+      "gen_seconds": 4.316636,
+      "load_seconds": 0.0143578,
+      "failures": []
+    },
+    {
+      "tool": "add_wardrobe_item",
+      "set": "hard",
+      "text": "my sister gave me a beige cashmere scarf, save it",
+      "raw": "{\"items\": [{\"category\": \"accessory\", \"name\": \"beige cashmere scarf\", \"color\": \"beige\", \"tags\": \"cashmere\"}]}",
+      "args": {
+        "items": [
+          {
+            "category": "accessory",
+            "name": "beige cashmere scarf",
+            "color": "beige",
+            "tags": "cashmere"
+          }
+        ]
+      },
+      "seconds": 1.3958816999802366,
+      "output_tokens": 36,
+      "gen_seconds": 1.245225,
+      "load_seconds": 0.0135124,
+      "failures": []
+    },
+    {
+      "tool": "list_wardrobe_items",
+      "set": "hard",
+      "text": "wats in my closet",
+      "raw": "{\"category\": \"all\"}",
+      "args": {
+        "category": "all"
+      },
+      "seconds": 0.33276580000529066,
+      "output_tokens": 7,
+      "gen_seconds": 0.211924,
+      "load_seconds": 0.0113486,
+      "failures": []
+    },
+    {
+      "tool": "list_wardrobe_items",
+      "set": "hard",
+      "text": "everything please, list my whole wardrobe",
+      "raw": "{\"category\": \"all\"}",
+      "args": {
+        "category": "all"
+      },
+      "seconds": 0.32565319997956976,
+      "output_tokens": 7,
+      "gen_seconds": 0.216025,
+      "load_seconds": 0.0155848,
+      "failures": []
+    },
+    {
+      "tool": "list_wardrobe_items",
+      "set": "hard",
+      "text": "show me my kicks",
+      "raw": "{\"category\": \"shoes\"}",
+      "args": {
+        "category": "shoes"
+      },
+      "seconds": 0.354722700023558,
+      "output_tokens": 8,
+      "gen_seconds": 0.248951,
+      "load_seconds": 0.0140186,
+      "failures": []
+    },
+    {
+      "tool": "list_wardrobe_items",
+      "set": "hard",
+      "text": "what do I have for my legs",
+      "raw": "{\"category\": \"bottom\"}",
+      "args": {
+        "category": "bottom"
+      },
+      "seconds": 0.32710980001138523,
+      "output_tokens": 7,
+      "gen_seconds": 0.214278,
+      "load_seconds": 0.0153583,
+      "failures": []
+    },
+    {
+      "tool": "list_wardrobe_items",
+      "set": "hard",
+      "text": "list all the coats and jackets",
+      "raw": "{\"category\": \"outerwear\"}",
+      "args": {
+        "category": "outerwear"
+      },
+      "seconds": 0.35631979996105656,
+      "output_tokens": 8,
+      "gen_seconds": 0.250503,
+      "load_seconds": 0.0106268,
+      "failures": []
+    },
+    {
+      "tool": "list_wardrobe_items",
+      "set": "hard",
+      "text": "what accessories, like hats and stuff, do I have",
+      "raw": "{\"category\": \"accessory\"}",
+      "args": {
+        "category": "accessory"
+      },
+      "seconds": 0.35823870002059266,
+      "output_tokens": 8,
+      "gen_seconds": 0.24954,
+      "load_seconds": 0.015482,
+      "failures": []
+    },
+    {
+      "tool": "list_wardrobe_items",
+      "set": "hard",
+      "text": "remind me what tops I own",
+      "raw": "{\"category\": \"top\"}",
+      "args": {
+        "category": "top"
+      },
+      "seconds": 0.32603029999881983,
+      "output_tokens": 7,
+      "gen_seconds": 0.213362,
+      "load_seconds": 0.013557,
+      "failures": []
+    },
+    {
+      "tool": "update_wardrobe_item",
+      "set": "hard",
+      "text": "make my parka warmth 5 and formality 2",
+      "raw": "{\n  \"updates\": [\n    {\n      \"item\": \"parka\",\n      \"warmth_level\": 5,\n      \"formality\": 2\n    }\n  ]\n}",
+      "args": {
+        "updates": [
+          {
+            "item": "parka",
+            "warmth_level": 5,
+            "formality": 2
+          }
+        ]
+      },
+      "seconds": 1.53476429998409,
+      "output_tokens": 39,
+      "gen_seconds": 1.362522,
+      "load_seconds": 0.0139583,
+      "failures": []
+    },
+    {
+      "tool": "update_wardrobe_item",
+      "set": "hard",
+      "text": "my hoodie is grey, not black",
+      "raw": "{\"updates\": [{\"item\": \"hoodie\", \"color\": \"grey\"}]}",
+      "args": {
+        "updates": [
+          {
+            "item": "hoodie",
+            "color": "grey"
+          }
+        ]
+      },
+      "seconds": 0.7192763999919407,
+      "output_tokens": 18,
+      "gen_seconds": 0.604245,
+      "load_seconds": 0.0134891,
+      "failures": []
+    },
+    {
+      "tool": "update_wardrobe_item",
+      "set": "hard",
+      "text": "set the gilet's warmth to three",
+      "raw": "{\n  \"updates\": [\n    {\n      \"item\": \"gilet\",\n      \"warmth_level\": 3\n    }\n  ]\n}",
+      "args": {
+        "updates": [
+          {
+            "item": "gilet",
+            "warmth_level": 3
+          }
+        ]
+      },
+      "seconds": 1.19112520001363,
+      "output_tokens": 31,
+      "gen_seconds": 1.078169,
+      "load_seconds": 0.0100579,
+      "failures": []
+    },
+    {
+      "tool": "update_wardrobe_item",
+      "set": "hard",
+      "text": "the anorak should count as outerwear and it's pretty warm, call it a 4",
+      "raw": "{\"updates\": [{\"item\": \"anorak\", \"category\": \"outerwear\", \"warmth_level\": 4}]}",
+      "args": {
+        "updates": [
+          {
+            "item": "anorak",
+            "category": "outerwear",
+            "warmth_level": 4
+          }
+        ]
+      },
+      "seconds": 1.1288012000150047,
+      "output_tokens": 28,
+      "gen_seconds": 0.968371,
+      "load_seconds": 0.0114011,
+      "failures": []
+    },
+    {
+      "tool": "update_wardrobe_item",
+      "set": "hard",
+      "text": "rename item 7 to 'weekend flannel'",
+      "raw": "{\n  \"updates\": [\n    {\n      \"item\": \"7\",\n      \"new_name\": \"weekend flannel\"\n    }\n  ]\n}",
+      "args": {
+        "updates": [
+          {
+            "item": "7",
+            "new_name": "weekend flannel"
+          }
+        ]
+      },
+      "seconds": 1.2321796999895014,
+      "output_tokens": 32,
+      "gen_seconds": 1.116726,
+      "load_seconds": 0.0150239,
+      "failures": []
+    },
+    {
+      "tool": "update_wardrobe_item",
+      "set": "hard",
+      "text": "actually my wool sweater is a base layer not a mid layer",
+      "raw": "{\"updates\": [{\"item\": \"wool sweater\", \"layer\": \"base\"}]}",
+      "args": {
+        "updates": [
+          {
+            "item": "wool sweater",
+            "layer": "base"
+          }
+        ]
+      },
+      "seconds": 0.7905942000215873,
+      "output_tokens": 19,
+      "gen_seconds": 0.642915,
+      "load_seconds": 0.0133957,
+      "failures": []
+    },
+    {
+      "tool": "update_wardrobe_item",
+      "set": "hard",
+      "text": "change the color on both my beanie and my gloves to black",
+      "raw": "{\n  \"updates\": [\n    {\n      \"item\": \"beanie\",\n      \"color\": \"black\"\n    },\n    {\n      \"item\": \"gloves\",\n      \"color\": \"black\"\n    }\n  ]\n}",
+      "args": {
+        "updates": [
+          {
+            "item": "beanie",
+            "color": "black"
+          },
+          {
+            "item": "gloves",
+            "color": "black"
+          }
+        ]
+      },
+      "seconds": 1.8581018000259064,
+      "output_tokens": 49,
+      "gen_seconds": 1.708439,
+      "load_seconds": 0.0142596,
+      "failures": []
+    },
+    {
+      "tool": "update_wardrobe_item",
+      "set": "hard",
+      "text": "can you tag the oxford as wrinkle free",
+      "raw": "{\"updates\": [{\"item\": \"oxford\", \"tags\": \"wrinkle free\"}]}",
+      "args": {
+        "updates": [
+          {
+            "item": "oxford",
+            "tags": "wrinkle free"
+          }
+        ]
+      },
+      "seconds": 0.7983487999881618,
+      "output_tokens": 20,
+      "gen_seconds": 0.68386,
+      "load_seconds": 0.0129424,
+      "failures": []
+    },
+    {
+      "tool": "delete_wardrobe_item",
+      "set": "hard",
+      "text": "delete my red scarf, not the blue one",
+      "raw": "{\"items\": [\"red scarf\"]}",
+      "args": {
+        "items": [
+          "red scarf"
+        ]
+      },
+      "seconds": 0.37734450004063547,
+      "output_tokens": 8,
+      "gen_seconds": 0.248884,
+      "load_seconds": 0.0145513,
+      "failures": []
+    },
+    {
+      "tool": "delete_wardrobe_item",
+      "set": "hard",
+      "text": "get rid of the anorak, the mules, and item 14",
+      "raw": "{\"items\": [\"anorak\", \"mules\", \"14\"]}",
+      "args": {
+        "items": [
+          "anorak",
+          "mules",
+          "14"
+        ]
+      },
+      "seconds": 0.7181126999785192,
+      "output_tokens": 17,
+      "gen_seconds": 0.568277,
+      "load_seconds": 0.015199,
+      "failures": []
+    },
+    {
+      "tool": "delete_wardrobe_item",
+      "set": "hard",
+      "text": "i donated my old jorts",
+      "raw": "{\"items\": [\"old jorts\"]}",
+      "args": {
+        "items": [
+          "old jorts"
+        ]
+      },
+      "seconds": 0.3986157999606803,
+      "output_tokens": 9,
+      "gen_seconds": 0.284886,
+      "load_seconds": 0.0134337,
+      "failures": []
+    },
+    {
+      "tool": "delete_wardrobe_item",
+      "set": "hard",
+      "text": "the white sneakers got wrecked in the rain, toss them",
+      "raw": "{\"items\": [\"white sneakers\"]}",
+      "args": {
+        "items": [
+          "white sneakers"
+        ]
+      },
+      "seconds": 0.40127719996962696,
+      "output_tokens": 8,
+      "gen_seconds": 0.25105,
+      "load_seconds": 0.0131158,
+      "failures": []
+    },
+    {
+      "tool": "delete_wardrobe_item",
+      "set": "hard",
+      "text": "clear out my gym shorts and running shoes",
+      "raw": "{\"items\": [\"gym shorts\", \"running shoes\"]}",
+      "args": {
+        "items": [
+          "gym shorts",
+          "running shoes"
+        ]
+      },
+      "seconds": 0.5420583999948576,
+      "output_tokens": 13,
+      "gen_seconds": 0.427138,
+      "load_seconds": 0.0117185,
+      "failures": []
+    },
+    {
+      "tool": "delete_wardrobe_item",
+      "set": "hard",
+      "text": "take the beanie AND the gloves off my list",
+      "raw": "{\"items\": [\"beanie\", \"gloves\"]}",
+      "args": {
+        "items": [
+          "beanie",
+          "gloves"
+        ]
+      },
+      "seconds": 0.5391140999854542,
+      "output_tokens": 13,
+      "gen_seconds": 0.426599,
+      "load_seconds": 0.0136007,
+      "failures": []
+    },
+    {
+      "tool": "mark_worn",
+      "set": "hard",
+      "text": "today I'm in the navy peacoat, not the hoodie",
+      "raw": "{\"items\": [\"navy peacoat\"]}",
+      "args": {
+        "items": [
+          "navy peacoat"
+        ]
+      },
+      "seconds": 0.5110468000057153,
+      "output_tokens": 11,
+      "gen_seconds": 0.352161,
+      "load_seconds": 0.0100508,
+      "failures": []
+    },
+    {
+      "tool": "mark_worn",
+      "set": "hard",
+      "text": "had my olive anorak and grey jorts on all day",
+      "raw": "{\"items\": [\"olive anorak\", \"grey jorts\"]}",
+      "args": {
+        "items": [
+          "olive anorak",
+          "grey jorts"
+        ]
+      },
+      "seconds": 0.6754997000098228,
+      "output_tokens": 16,
+      "gen_seconds": 0.531332999,
+      "load_seconds": 0.0112301,
+      "failures": []
+    },
+    {
+      "tool": "mark_worn",
+      "set": "hard",
+      "text": "ok wearing it",
+      "raw": "{\"items\": [\"black henley\", \"khaki chinos\", \"white sneakers\"]}",
+      "args": {
+        "items": [
+          "black henley",
+          "khaki chinos",
+          "white sneakers"
+        ]
+      },
+      "seconds": 0.739899099979084,
+      "output_tokens": 19,
+      "gen_seconds": 0.636903,
+      "load_seconds": 0.0114349,
+      "failures": []
+    },
+    {
+      "tool": "mark_worn",
+      "set": "hard",
+      "text": "rocking the mules today \ud83d\ude0e",
+      "raw": "{\"items\": [\"mules\"]}",
+      "args": {
+        "items": [
+          "mules"
+        ]
+      },
+      "seconds": 0.36187059996882454,
+      "output_tokens": 8,
+      "gen_seconds": 0.249345,
+      "load_seconds": 0.0156169,
+      "failures": []
+    },
+    {
+      "tool": "mark_worn",
+      "set": "hard",
+      "text": "I put on what you suggested",
+      "raw": "{\"items\": [\"that\"]}",
+      "args": {
+        "items": [
+          "that"
+        ]
+      },
+      "seconds": 0.3236934000160545,
+      "output_tokens": 7,
+      "gen_seconds": 0.214933,
+      "load_seconds": 0.0129205,
+      "failures": []
+    },
+    {
+      "tool": "mark_worn",
+      "set": "hard",
+      "text": "wore my gilet, flannel, and boots to the hike",
+      "raw": "{\"items\": [\"gilet\", \"flannel\", \"boots\"]}",
+      "args": {
+        "items": [
+          "gilet",
+          "flannel",
+          "boots"
+        ]
+      },
+      "seconds": 0.67877610004507,
+      "output_tokens": 16,
+      "gen_seconds": 0.530152,
+      "load_seconds": 0.0118419,
+      "failures": []
+    }
+  ],
+  "regraded_at": "2026-11-25T23:34:17"
+}
