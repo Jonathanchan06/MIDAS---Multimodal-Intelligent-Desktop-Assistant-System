@@ -32,12 +32,14 @@ from tools.reminders import (
     ADD_REMINDER_SCHEMA,
     DELETE_REMINDER_SCHEMA,
     LIST_REMINDERS_SCHEMA,
-    add_reminder,
-    delete_reminder,
+    add_reminder_from_slots,
+    delete_reminders,
     describe_add_reminder,
-    describe_delete_reminder,
+    describe_delete_reminders,
     describe_list_reminders,
     list_reminders,
+    resolve_reminder_refs,
+    resolve_reminder_slots,
     speak_list_reminders,
 )
 from tools.wardrobe import (
@@ -128,10 +130,11 @@ TOOL_REGISTRY = {
         "speak_prose": "briefing",
     },
     "add_reminder": {
-        "fn": add_reminder,
+        "fn": add_reminder_from_slots,
         "schema": ADD_REMINDER_SCHEMA,
         "route": "add_reminder",
         "describe": describe_add_reminder,
+        "post_extract": resolve_reminder_slots,
     },
     "list_reminders": {
         "fn": list_reminders,
@@ -141,10 +144,11 @@ TOOL_REGISTRY = {
         "spoken": speak_list_reminders,
     },
     "delete_reminder": {
-        "fn": delete_reminder,
+        "fn": delete_reminders,
         "schema": DELETE_REMINDER_SCHEMA,
         "route": "delete_reminder",
-        "describe": describe_delete_reminder,
+        "describe": describe_delete_reminders,
+        "post_extract": resolve_reminder_refs,
     },
     "suggest_fit": {
         "fn": suggest_fit,

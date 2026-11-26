@@ -176,7 +176,7 @@ the router-replacement benchmark below.
 schema bounding, sampling) pull out the right arguments? It scores the
 model's **raw** output, before any `post_extract` guard, because that's
 what a model swap or the LoRA extractor changes. Cases are in
-`eval/extraction_cases.json` (103, for the 8 tools that extract; matcher
+`eval/extraction_cases.json` (106, for the 8 tools that extract; matcher
 spec in `check()`'s docstring). Every failure gets one category —
 `invented_id`, `extra_field`, `padded`, `wrong_time`, etc. — matching the
 failure modes in "Extraction design rule".
@@ -189,29 +189,49 @@ python eval/extraction_eval.py --compare a.json b.json          # side by side +
 ```
 
 Sampling is at temperature 0.7, so a single run is noisy — use
-`--repeats 3` before trusting a few-case difference. `remind_at` is scored
-by the moment it resolves to (via the reminders tool's own parser,
-relative to the call time), not by its text. The 3 `known_gap` cases
-(`delete_reminder` by description) can't pass under the current schema —
-the summary reports the score with and without them.
+`--repeats 3` before trusting a few-case difference. The clock the model
+and grader see is **pinned** (`--now`, default Wednesday 2026-11-25
+10:00) so "tonight at 9pm" has one right answer whenever the eval runs —
+don't compare runs made with different `--now`. `add_reminder` is scored
+by the moment its slots resolve to (through `resolve_when`), not by the
+slot values. Cases can carry `"known_gap"` (a case the current schema
+can't pass); the summary then also reports the score without them.
 
-Baseline (Nov 2026, `--repeats 3`, raw output, before guards):
+**Training-data contract:** the LoRA learns the tool schemas as they are
+now. Change a schema's `parameters` and any training data generated
+against the old one is stale.
 
-| | qwen3:8b (temp 0.7) | qwen2.5:7b (temp 0.3) |
+**The schema is in the extraction prompt** (`build_extraction_messages`).
+Ollama's `format` only constrains the output grammar — keys, types,
+enums — so before this the model never saw a single field description
+(verified with a "secret word" in a description: invisible). Adding it was
+the biggest single win measured on this project:
+
+| raw output, `--repeats 3` | qwen3:8b | qwen2.5:7b |
 |---|---|---|
-| pass | 185/309 (59.9%) | 206/309 (66.7%) |
-| mean / p95 latency | 1.83s / 3.22s | 1.08s / 2.03s |
-| tok/s | 17.6 | 24.8 |
-| invalid JSON (hit the cap) | 5 | 0 |
+| pass, no schema in prompt | 59.4% | 62.6% |
+| **pass, schema in prompt (current)** | **95.0%** | **94.7%** |
+| mean / p50 / p95 latency (current) | 1.19 / 0.73 / 2.72s | 0.76 / 0.41 / 2.23s |
 
-qwen2.5 wins on every tool except `add_reminder` (it does the date math
-itself and gets weekdays wrong). Both models fail `add_wardrobe_item`
-mostly by leaving `color` empty and putting it in `name`, guess a
-category for "what's in my closet" instead of `all`, and pad
-`suggest_fit`'s occasion. qwen3's invalid JSON is a repetition loop
-inside a `mark_worn` **array**: `EXTRACTION_MAX_STRING_LENGTH` bounds
-each string, but nothing bounds the number of items.
-Results JSON is in `eval/results/` (use it with `--compare`).
+It's also faster (fewer junk fields to generate; `now` sits at the end of
+the prompt so the per-tool prefix stays cached). qwen3:8b's only
+remaining failure is putting an added item's color in `name` without
+filling `color`. qwen3's no-schema runs also hit a repetition loop inside
+a `mark_worn` **array** (invalid JSON) — `EXTRACTION_MAX_STRING_LENGTH`
+bounds each string, but nothing bounds the number of items.
+
+Small LoRA-base candidates, **zero-shot**, CPU only (`--num-gpu 0`, chat
+model resident on GPU), 1 repeat, schema in prompt:
+
+| | qwen2.5:0.5b | qwen3:1.7b |
+|---|---|---|
+| pass (no schema → schema) | 50.9% → 56.6% | 55.7% → 73.6% |
+| mean / p50 / p95 latency | 0.44 / 0.23 / 1.23s | 1.19 / 0.55 / 3.18s |
+
+Both fail `update_wardrobe_item` mostly by adding fields (15% / 0%).
+`EXTRACTION_MODEL` / `EXTRACTION_NUM_GPU` in `config.py` select the
+extractor (default: the chat model). Results JSON is in `eval/results/`
+(`schema_*` = current prompt; use with `--compare`).
 
 ## In progress
 
@@ -235,7 +255,7 @@ invents one (observed: `item_id: 1`, `12345`, `reminder_id: 0`) and the
 tool then edits/deletes the wrong row. Have the schema take a reference
 in the user's own words and resolve it to a row in a `post_extract` hook,
 refusing on no-match or ambiguity (see `_match_item` in
-`tools/wardrobe.py`). Likewise, ground free-text fields in the user's
+`tools/wardrobe.py`, `_match_reminder` in `tools/reminders.py`). Likewise, ground free-text fields in the user's
 actual words where they drive logic (`resolve_fit_occasion`,
 `resolve_add_items`) — qwen3 pads them with invented context.
 
@@ -249,12 +269,22 @@ Related rules learned the hard way:
   for each changed field (`_has_evidence`).
 - When a guard drops everything, say so in the reply — a bare "No items
   specified." made a guard bug look like the model failing.
+- Never ask the model for **calendar math**. `add_reminder` extracts
+  slots — `day` (enum: today/tomorrow/weekday/`date`), optional `date`
+  (MM-DD), `time` (HH:MM), optional `in_minutes` — and `resolve_when`
+  computes the datetime. Asked for ISO, both qwen3:8b and qwen2.5:7b put
+  "next Tuesday" on the wrong day; asked for the raw phrase, dateparser
+  returns None for "tonight", "next Tuesday", "Saturday morning", and puts
+  a bare "at 10pm" on *tomorrow*. The API's `POST /reminders` still takes
+  a phrase/ISO via `add_reminder` + dateparser, with those limits.
+- **Don't force a field the model can't fill honestly.** With `day` as
+  free text and `in_minutes` required, both models filled them with junk
+  (`day: "d+1"`, `in_minutes: 1440` for "tomorrow at 8am"). An enum and
+  an optional field fixed most of it; `resolve_reminder_slots` still drops
+  an `in_minutes` the user's words don't support.
 
 ## Known open risk
 
-- **`delete_reminder` still takes a raw `reminder_id`** and has exactly
-  the bug above ("cancel my reminder to call mom" → `reminder_id: 0`).
-  Needs the wardrobe treatment.
 - **Prompt injection via notification OCR:** vision-extracted screenshot
   text is untrusted and currently flows into the briefing prompt unguarded.
   Don't widen what that text can influence (e.g. letting it trigger tools)

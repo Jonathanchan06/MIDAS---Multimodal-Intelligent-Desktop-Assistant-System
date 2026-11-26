@@ -21,8 +21,8 @@ seen in practice (see CLAUDE.md "Extraction design rule"):
     padded            free text not grounded in the user's words
                       ("daily wear/office work" for "what should I wear")
     wrong_value       wrong enum/number/words
-    wrong_time        remind_at resolves to the wrong moment
-    unparseable_time  remind_at the reminders tool can't parse at all
+    wrong_time        add_reminder's slots resolve to the wrong moment
+    unparseable_time  slots the reminders tool can't resolve at all
     missing           a required value or list entry is absent
     extra_entry       a list entry nobody asked for
 
@@ -57,9 +57,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import config  # noqa: E402
 from core.orchestrator import Orchestrator  # noqa: E402
 from main import TOOL_REGISTRY  # noqa: E402
-from tools.reminders import _parse_datetime  # noqa: E402
+from tools.reminders import _parse_datetime, resolve_when  # noqa: E402
 
 CASES_PATH = Path(__file__).parent / "extraction_cases.json"
+# Pinned clock for every case: a Wednesday 10:00, so "tonight at 9pm",
+# "at noon", and weekday cases have one right answer whenever this runs.
+EVAL_NOW = "2026-11-25T10:00:00"
 
 CATEGORIES = [
     "invalid_output", "invented_id", "extra_field", "padded", "wrong_value",
@@ -263,7 +266,7 @@ def _check_time(spec: dict, value, ctx: Ctx, path: str) -> list[dict]:
     try:
         got = _parse_datetime(str(value))
     except Exception:
-        _fail(out, "unparseable_time", path, f"reminders tool can't parse {value!r}")
+        _fail(out, "unparseable_time", path, f"reminders tool can't resolve {value!r}")
         return out
     if got.tzinfo is not None:
         got = got.astimezone().replace(tzinfo=None)
@@ -317,14 +320,13 @@ def load_cases(tool_filter: str | None) -> list[dict]:
     return cases
 
 
-def run_case(orchestrator: Orchestrator, case: dict) -> dict:
-    params = TOOL_REGISTRY[case["tool"]]["schema"]["function"]["parameters"]
+def run_case(orchestrator: Orchestrator, case: dict, now: datetime) -> dict:
+    function_schema = TOOL_REGISTRY[case["tool"]]["schema"]["function"]
     history = case.get("history", [])
-    now = datetime.now()
     record = {"tool": case["tool"], "text": case["text"], "raw": None, "args": None}
     start = time.perf_counter()
     try:
-        response = orchestrator.extract_raw(params, case["text"], history)
+        response = orchestrator.extract_raw(function_schema, case["text"], history, now=now)
     except Exception as exc:
         record.update(seconds=time.perf_counter() - start, failures=[
             {"category": "invalid_output", "path": "", "message": f"call failed: {exc!r}"}
@@ -345,9 +347,32 @@ def run_case(orchestrator: Orchestrator, case: dict) -> dict:
         }]
         return record
     record["args"] = args
+    view = TOOL_VIEWS.get(case["tool"], lambda a, _now: a)(args, now)
     spec = {"fields": case["expect"], "only": True}
-    record["failures"] = check(spec, args, Ctx(case["text"], history, now), "args")
+    record["failures"] = check(spec, view, Ctx(case["text"], history, now), "args")
     return record
+
+
+def _reminder_view(args: dict, now: datetime) -> dict:
+    """add_reminder extracts day/time/in_minutes slots; what matters is
+    the moment they resolve to, so grade that (as remind_at) through the
+    tool's own resolver rather than the exact slot values — 'tonight at
+    9pm' is equally right as day='today' or day=''."""
+    if not isinstance(args, dict):
+        return args
+    view = {k: v for k, v in args.items() if k not in ("day", "time", "in_minutes", "date")}
+    try:
+        view["remind_at"] = resolve_when(
+            args.get("day", ""), args.get("time", ""), args.get("in_minutes", 0),
+            args.get("date", ""), now=now,
+        ).isoformat()
+    except Exception as exc:
+        view["remind_at"] = f"<unresolvable: {exc}>"
+    return view
+
+
+# Per-tool transform from raw extraction to what the cases grade.
+TOOL_VIEWS = {"add_reminder": _reminder_view}
 
 
 def summarize(records: list[dict], cases: list[dict]) -> dict:
@@ -464,11 +489,17 @@ def compare(path_a: str, path_b: str) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    parser.add_argument("--model", help="override config.ORCHESTRATOR_MODEL")
+    parser.add_argument("--model", help="override config.EXTRACTION_MODEL")
+    parser.add_argument("--num-gpu", type=int, help="layers on GPU (0 = CPU only, like the router)")
     parser.add_argument("--temperature", type=float, help="override sampling temperature")
     parser.add_argument("--tool", help="only run cases for this tool")
     parser.add_argument("--repeats", type=int, default=1, help="runs per case (sampling isn't greedy)")
     parser.add_argument("--out", help="write full results JSON here (for --compare)")
+    parser.add_argument(
+        "--now", default=EVAL_NOW,
+        help=f"the clock the model and grader see (default {EVAL_NOW}, a Wednesday "
+             "morning) -- pinned so runs at different times of day compare",
+    )
     parser.add_argument("--compare", nargs=2, metavar=("A.json", "B.json"))
     args = parser.parse_args()
 
@@ -477,24 +508,27 @@ def main() -> None:
         return
 
     if args.model:
-        config.ORCHESTRATOR_MODEL = args.model
+        config.EXTRACTION_MODEL = args.model
+    if args.num_gpu is not None:
+        config.EXTRACTION_NUM_GPU = args.num_gpu
     if args.temperature is not None:
         config.ORCHESTRATOR_SAMPLING = {**config.ORCHESTRATOR_SAMPLING, "temperature": args.temperature}
 
     cases = load_cases(args.tool)
     orchestrator = Orchestrator(tool_registry=TOOL_REGISTRY)
+    now = datetime.fromisoformat(args.now)
 
-    print(f"Model {config.ORCHESTRATOR_MODEL}, sampling {config.ORCHESTRATOR_SAMPLING}, "
-          f"think={config.ORCHESTRATOR_THINK}")
+    print(f"Model {config.EXTRACTION_MODEL}, sampling {config.ORCHESTRATOR_SAMPLING}, "
+          f"think={config.ORCHESTRATOR_THINK}, num_gpu={config.EXTRACTION_NUM_GPU}, now={now:%a %Y-%m-%d %H:%M}")
     # Warm-up: the first call pays the model load (~8.5s); keep it out of
     # the latency numbers.
-    warm = run_case(orchestrator, {"tool": "list_wardrobe_items", "text": "list my shoes", "expect": {}})
+    warm = run_case(orchestrator, {"tool": "list_wardrobe_items", "text": "list my shoes", "expect": {}}, now)
     print(f"Warm-up call: {warm['seconds']:.1f}s (load {warm.get('load_seconds', 0):.1f}s)\n")
 
     records = []
     total = len(cases) * args.repeats
     for n, (case, _) in enumerate(((c, r) for r in range(args.repeats) for c in cases), start=1):
-        record = run_case(orchestrator, case)
+        record = run_case(orchestrator, case, now)
         records.append(record)
         mark = "OK" if not record["failures"] else "FAIL"
         print(f"[{n}/{total}] {mark:<4} {record['seconds']:5.2f}s {case['tool']:<22} {case['text']!r}")
@@ -510,9 +544,10 @@ def main() -> None:
         out = Path(args.out)
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(json.dumps({
-            "model": config.ORCHESTRATOR_MODEL,
+            "model": config.EXTRACTION_MODEL,
             "sampling": config.ORCHESTRATOR_SAMPLING,
             "repeats": args.repeats,
+            "eval_now": now.isoformat(timespec="seconds"),
             "run_at": datetime.now().isoformat(timespec="seconds"),
             "summary": summary,
             "records": records,

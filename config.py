@@ -75,6 +75,13 @@ ROUTER_TEMPERATURE = 0.1
 # is what it was tuned with.
 ORCHESTRATOR_SAMPLING = {"temperature": 0.7, "top_p": 0.8, "top_k": 20}
 
+# Argument extraction can run on its own model (the planned LoRA
+# extractor, see ROADMAP.md). Default: the chat model, as before. A small
+# extractor would sit on CPU (EXTRACTION_NUM_GPU = 0) like the router, so
+# the chat model keeps the GPU; None lets Ollama decide placement.
+EXTRACTION_MODEL = ORCHESTRATOR_MODEL
+EXTRACTION_NUM_GPU = None
+
 # Default JSON-schema maxLength the orchestrator adds to every free-text
 # string field it asks the model to fill (enum fields and fields with
 # their own maxLength are left alone). Ollama enforces it in the grammar,

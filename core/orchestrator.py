@@ -119,12 +119,34 @@ OUTFIT_FORMAT_PROMPT = (
     "this will be read aloud by a TTS engine."
 )
 
+# The schema goes in the prompt because Ollama's `format` only constrains
+# the output grammar (keys, types, enums) — field descriptions never reach
+# the model otherwise (verified: a description holding a "secret word"
+# was invisible). `now` is last so the per-tool prefix stays identical
+# between calls and Ollama can reuse its cached prompt.
 EXTRACTION_SYSTEM_PROMPT = (
-    "Current datetime: {now}. Extract the arguments for the user's "
-    "request as JSON matching the given schema. Keep any free-text field "
-    "a short paraphrase of the underlying request — do not restate a "
-    "date/time that already belongs in its own field."
+    "Extract the arguments for the tool {name} from the user's latest "
+    "message, as JSON matching this schema (each field's description says "
+    "what goes in it):\n{schema}\n"
+    "Use the user's own words for free-text fields and never add details "
+    "they didn't say; don't restate a date/time that has its own field. "
+    "Leave out optional fields that don't apply.\n"
+    "Current datetime: {now}."
 )
+
+
+def build_extraction_messages(function_schema: dict, text: str, history: list[dict],
+                              now: datetime | None = None) -> list[dict]:
+    """The exact messages an extraction call sends. A plain function so
+    the LoRA training-data generator renders prompts identically to the
+    live call — if the two drift, the fine-tuned model sees a prompt at
+    inference it was never trained on."""
+    system = EXTRACTION_SYSTEM_PROMPT.format(
+        name=function_schema["name"],
+        schema=json.dumps(function_schema["parameters"], ensure_ascii=False),
+        now=(now or datetime.now()).isoformat(timespec="seconds"),
+    )
+    return [{"role": "system", "content": system}, *history, {"role": "user", "content": text}]
 
 NOTIFICATION_EXTRACTION_PROMPT = (
     "Describe every notification visible in this image, one per line. "
@@ -215,37 +237,37 @@ class Orchestrator:
             bounded["maxLength"] = config.EXTRACTION_MAX_STRING_LENGTH
         return bounded
 
-    def _extract_arguments(self, params_schema: dict, text: str, history: list[dict]) -> dict:
+    def _extract_arguments(self, function_schema: dict, text: str, history: list[dict]) -> dict:
         # A capped (truncated) generation is invalid JSON — raising here
         # lands in _run_tool_route's handler, which runs with no arguments.
-        return json.loads(self.extract_raw(params_schema, text, history).message.content)
+        return json.loads(self.extract_raw(function_schema, text, history).message.content)
 
-    def extract_raw(self, params_schema: dict, text: str, history: list[dict]):
+    def extract_raw(self, function_schema: dict, text: str, history: list[dict],
+                    now: datetime | None = None):
         """The extraction call itself, returning Ollama's full response
-        (raw text plus token counts and timings) unparsed. Public so
+        (raw text plus token counts and timings) unparsed. Takes a tool
+        schema's "function" dict (name + parameters). Public so
         eval/extraction_eval.py scores exactly this code path — same
-        prompt, schema bounding, and sampling as a live request."""
-        messages = [
-            {
-                "role": "system",
-                "content": EXTRACTION_SYSTEM_PROMPT.format(
-                    now=datetime.now().isoformat(timespec="seconds")
-                ),
-            },
-            *history,
-            {"role": "user", "content": text},
-        ]
+        prompt, schema bounding, and sampling as a live request. `now`
+        lets the eval pin the clock so results don't depend on the time
+        of day they were run."""
+        messages = build_extraction_messages(function_schema, text, history, now)
+        params_schema = function_schema["parameters"]
+        options = {
+            "num_ctx": config.CHAT_NUM_CTX,
+            **config.ORCHESTRATOR_SAMPLING,
+            "num_predict": config.EXTRACTION_MAX_TOKENS,
+        }
+        if config.EXTRACTION_NUM_GPU is not None:
+            options["num_gpu"] = config.EXTRACTION_NUM_GPU
         return self.client.chat(
-            model=config.ORCHESTRATOR_MODEL,
+            model=config.EXTRACTION_MODEL,
             messages=messages,
             format=self._bound_strings(params_schema),
+            # think=False also works on non-thinking models (qwen2.5:7b).
             think=config.ORCHESTRATOR_THINK,
             keep_alive=config.CHAT_KEEP_ALIVE,
-            options={
-                "num_ctx": config.CHAT_NUM_CTX,
-                **config.ORCHESTRATOR_SAMPLING,
-                "num_predict": config.EXTRACTION_MAX_TOKENS,
-            },
+            options=options,
             stream=False,
         )
 
@@ -268,12 +290,12 @@ class Orchestrator:
         self, tool_match: tuple[str, dict], text: str, history: list[dict]
     ) -> tuple[str, object]:
         name, entry = tool_match
-        params = entry["schema"]["function"]["parameters"]
+        function_schema = entry["schema"]["function"]
 
         arguments = {}
-        if params.get("required"):
+        if function_schema["parameters"].get("required"):
             try:
-                arguments = self._extract_arguments(params, text, history)
+                arguments = self._extract_arguments(function_schema, text, history)
             except Exception:
                 logger.exception("argument extraction failed for '%s'", name)
 
